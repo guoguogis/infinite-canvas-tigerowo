@@ -11,6 +11,8 @@ type Query struct {
 	Type     string
 	Page     int
 	PageSize int
+	// All 表示取回全部数据，由各 repository 自行决定是否支持。
+	All bool
 }
 
 func (q *Query) Normalize() {

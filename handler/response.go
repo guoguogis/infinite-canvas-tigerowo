@@ -51,6 +51,7 @@ func parseQuery(r *http.Request) model.Query {
 	q := r.URL.Query()
 	page, _ := strconv.Atoi(q.Get("page"))
 	pageSize, _ := strconv.Atoi(q.Get("pageSize"))
+	all, _ := strconv.ParseBool(q.Get("all"))
 	return model.Query{
 		Keyword:  q.Get("keyword"),
 		Date:     q.Get("date"),
@@ -59,5 +60,6 @@ func parseQuery(r *http.Request) model.Query {
 		Type:     q.Get("type"),
 		Page:     page,
 		PageSize: pageSize,
+		All:      all,
 	}
 }

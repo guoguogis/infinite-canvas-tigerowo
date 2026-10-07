@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"time"
 
 	"github.com/tigerowo/infinite-canvas/model"
 	"gorm.io/gorm"
@@ -44,9 +45,16 @@ func ListPrompts(q model.Query) ([]model.Prompt, int64, error) {
 	}
 
 	var items []model.Prompt
-	if err := tx.Order("updated_at desc").Offset(q.Offset()).Limit(q.PageSize).Find(&items).Error; err != nil {
+	if q.All {
+		// SQLite 单次取数偏大时会随机失败（unable to open database file (14)），
+		// 这里用游标分片取回全部数据，避免 OFFSET 和大结果集。
+		if items, err = listAllPrompts(db, q, int(total)); err != nil {
+			return nil, 0, err
+		}
+	} else if err := tx.Order("updated_at desc").Offset(q.Offset()).Limit(q.PageSize).Find(&items).Error; err != nil {
 		return nil, 0, err
 	}
+
 	categories, _ := ListPromptCategories()
 	githubURLs := map[string]string{}
 	for _, item := range categories {
@@ -56,6 +64,66 @@ func ListPrompts(q model.Query) ([]model.Prompt, int64, error) {
 		items[i].GithubURL = githubURLs[items[i].Category]
 	}
 	return items, total, nil
+}
+
+// promptChunkSize 是单次取数的条数上限；SQLite 单次取数偏大时会随机报
+// unable to open database file (14)，分片取小一些并配合重试更稳。
+const promptChunkSize = 100
+
+// promptChunkAttempts 是单片的取数尝试次数，用于抵消上面那个随机失败。
+const promptChunkAttempts = 4
+
+// listAllPrompts 用 (updated_at, id) 游标分批取回全部提示词，避免使用 OFFSET。
+func listAllPrompts(db *gorm.DB, q model.Query, total int) ([]model.Prompt, error) {
+	items := make([]model.Prompt, 0, total)
+	cursor := promptCursor{}
+	for {
+		chunk, err := listPromptChunk(db, q, cursor)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, chunk...)
+		if len(chunk) < promptChunkSize {
+			return items, nil
+		}
+		last := chunk[len(chunk)-1]
+		cursor = promptCursor{UpdatedAt: last.UpdatedAt, ID: last.ID}
+	}
+}
+
+// listPromptChunk 取游标之后的一片数据，遇到随机失败会重试。
+func listPromptChunk(db *gorm.DB, q model.Query, cursor promptCursor) ([]model.Prompt, error) {
+	var lastErr error
+	for attempt := 0; attempt < promptChunkAttempts; attempt++ {
+		var chunk []model.Prompt
+		chunkQuery := applyPromptFilters(db.Model(&model.Prompt{}), q)
+		if condition, args := promptCursorCondition(cursor); condition != "" {
+			chunkQuery = chunkQuery.Where(condition, args...)
+		}
+		err := chunkQuery.Order("updated_at desc, id desc").Limit(promptChunkSize).Find(&chunk).Error
+		if err == nil {
+			return chunk, nil
+		}
+		lastErr = err
+		time.Sleep(100 * time.Millisecond)
+	}
+	return nil, lastErr
+}
+
+type promptCursor struct {
+	UpdatedAt string
+	ID        string
+}
+
+// promptCursorCondition 返回游标之后的筛选条件；updated_at 为空串表示排在最末。
+func promptCursorCondition(cursor promptCursor) (string, []any) {
+	if cursor.UpdatedAt == "" && cursor.ID == "" {
+		return "", nil
+	}
+	if cursor.UpdatedAt == "" {
+		return "(updated_at = '' AND id < ?)", []any{cursor.ID}
+	}
+	return "(updated_at < ? OR (updated_at = ? AND id < ?) OR updated_at = '')", []any{cursor.UpdatedAt, cursor.UpdatedAt, cursor.ID}
 }
 
 // ListPromptTags 返回当前提示词查询条件下的全部标签。

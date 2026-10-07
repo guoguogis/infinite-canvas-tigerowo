@@ -454,22 +454,18 @@ const CanvasPromptsTab = memo(function CanvasPromptsTab({ theme, onInsert }: { t
     );
 });
 
+// 后端单次取数偏大时会随机失败，用 all=1 让后端按游标分片取回整个分类；
+// 前端只做本地分页，每页 100 条。
+const PROMPT_PAGE_SIZE = 100;
+
 async function fetchPromptCategory(category: string) {
-    const first = await fetchPrompts({ category, page: 1, pageSize: 500 });
-    if (first.total <= first.items.length) return first.items;
-
-    const pages = await Promise.all(
-        Array.from(
-            { length: Math.ceil(first.total / 500) - 1 },
-            (_, index) => fetchPrompts({ category, page: index + 2, pageSize: 500 }),
-        ),
-    );
-
-    return [...first.items, ...pages.flatMap((page) => page.items)];
+    const result = await fetchPrompts({ category, all: true });
+    return result.items;
 }
 
 function PromptGroup({ category, keyword, open, theme, onToggle, onView, onInsert }: { category: string; keyword: string; open: boolean; theme: CanvasTheme; onToggle: () => void; onView: (prompt: Prompt) => void; onInsert: (payload: InsertAssetPayload) => void }) {
     const label = category === "system" ? "系统提示词" : category;
+    const [page, setPage] = useState(1);
     const query = useQuery({
         queryKey: ["canvas-side-prompt-category", category],
         queryFn: () => fetchPromptCategory(category),
@@ -483,6 +479,8 @@ function PromptGroup({ category, keyword, open, theme, onToggle, onView, onInser
         const cachedItems = query.data || [];
         return queryText ? cachedItems.filter((item) => [item.title, item.prompt].join(" ").toLowerCase().includes(queryText)) : cachedItems;
     }, [keyword, query.data]);
+    const visibleItems = useMemo(() => items.slice((page - 1) * PROMPT_PAGE_SIZE, page * PROMPT_PAGE_SIZE), [items, page]);
+    useEffect(() => setPage(1), [category, keyword]);
     return (
         <div>
             <button type="button" onClick={onToggle} className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1.5 text-left text-xs font-semibold opacity-75 transition hover:opacity-100">
@@ -498,7 +496,10 @@ function PromptGroup({ category, keyword, open, theme, onToggle, onView, onInser
                             加载失败，点击重试
                         </button>
                     ) : items.length ? (
-                        items.map((item) => <PromptRow key={item.id} item={item} theme={theme} onView={() => onView(item)} onInsert={() => onInsert({ kind: "text", content: item.prompt, title: item.title })} />)
+                        <>
+                            {visibleItems.map((item) => <PromptRow key={item.id} item={item} theme={theme} onView={() => onView(item)} onInsert={() => onInsert({ kind: "text", content: item.prompt, title: item.title })} />)}
+                            {items.length > PROMPT_PAGE_SIZE ? <Pagination className="!mt-2 flex justify-center" size="small" current={page} pageSize={PROMPT_PAGE_SIZE} total={items.length} showSizeChanger={false} onChange={setPage} /> : null}
+                        </>
                     ) : (
                         <div className="py-4 text-center text-xs opacity-40">{category === "system" ? "暂无提示词" : "该分类暂无提示词"}</div>
                     )}

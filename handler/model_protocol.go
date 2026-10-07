@@ -356,6 +356,10 @@ var builtinAIProtocols = []aiProtocolAdapter{
 			if !service.IsArkChannel(channel) {
 				return path, false
 			}
+			if path == "/images/edits" {
+				// 方舟没有图生图专用接口，参考图走 /images/generations 的 image 字段。
+				return "/images/generations", true
+			}
 			if path == "/videos" {
 				return "/contents/generations/tasks", true
 			}
@@ -364,7 +368,13 @@ var builtinAIProtocols = []aiProtocolAdapter{
 			}
 			return path, true
 		},
-		prepare: prepareArkSeedanceRequest,
+		prepare: func(input aiProtocolRequest) (aiProtocolRequest, bool, error) {
+			image, handled, err := prepareArkImageRequest(input)
+			if handled {
+				return image, true, err
+			}
+			return prepareArkSeedanceRequest(input)
+		},
 		uploads: func(model.ModelChannel, map[string]bool) (map[string]directAIUpload, error) {
 			return nil, nil
 		},
