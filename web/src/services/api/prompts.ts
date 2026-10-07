@@ -8,6 +8,7 @@ export type Prompt = {
     tags: string[];
     category: string;
     githubUrl: string;
+    videoUrl: string;
     preview: string;
     createdAt: string;
     updatedAt: string;

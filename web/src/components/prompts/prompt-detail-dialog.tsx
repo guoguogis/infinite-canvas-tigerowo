@@ -1,20 +1,37 @@
 "use client";
 
-import { Copy, FolderPlus } from "lucide-react";
-import { Button, Modal, Space, Tag } from "antd";
+import { Copy, ExternalLink, FolderPlus } from "lucide-react";
+import { Button, Modal, Space, Tag, Typography } from "antd";
 
 import { formatPromptDate, type Prompt } from "@/services/api/prompts";
 
+import { PromptCover } from "./prompt-cover";
+
 export function PromptDetailDialog({ prompt, onClose, onCopy, onSaveAsset }: { prompt: Prompt | null; onClose: () => void; onCopy: (prompt: string) => void; onSaveAsset?: (prompt: Prompt) => void }) {
     const preview = prompt?.preview.replace(/!\[[^\]]*]\([^)]+\)/g, "").trim() || "";
+    const sourceUrl = prompt?.githubUrl || "";
     return (
         <>
-            <Modal title={prompt?.title} open={Boolean(prompt)} onCancel={onClose} footer={null} width={860}>
+            <Modal
+                title={
+                    sourceUrl ? (
+                        <Typography.Link href={sourceUrl} target="_blank" rel="noreferrer">
+                            {prompt?.title} <ExternalLink className="ml-1 inline size-3.5" />
+                        </Typography.Link>
+                    ) : (
+                        prompt?.title
+                    )
+                }
+                open={Boolean(prompt)}
+                onCancel={onClose}
+                footer={null}
+                width={860}
+            >
                 {prompt ? (
                     <>
                         <div className="grid gap-5 md:grid-cols-[300px_minmax(0,1fr)]">
                             <div className="space-y-3">
-                                <img src={prompt.coverUrl} alt={prompt.title} className="aspect-[4/3] w-full rounded-lg object-cover" />
+                                <PromptCover url={prompt.coverUrl} title={prompt.title} className="aspect-[4/3] w-full rounded-lg object-cover" />
                                 {preview ? <pre className="max-h-60 overflow-auto whitespace-pre-wrap rounded-lg bg-stone-100 p-3 text-xs leading-5 text-stone-600 dark:bg-stone-900 dark:text-stone-300">{preview}</pre> : null}
                             </div>
                             <div className="min-w-0">
@@ -36,6 +53,11 @@ export function PromptDetailDialog({ prompt, onClose, onCopy, onSaveAsset }: { p
                                     {onSaveAsset ? (
                                         <Button icon={<FolderPlus className="size-4" />} onClick={() => onSaveAsset(prompt)}>
                                             加入我的素材
+                                        </Button>
+                                    ) : null}
+                                    {sourceUrl ? (
+                                        <Button icon={<ExternalLink className="size-4" />} href={sourceUrl} target="_blank" rel="noreferrer">
+                                            查看原页面
                                         </Button>
                                     ) : null}
                                 </Space>

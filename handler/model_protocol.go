@@ -29,6 +29,8 @@ type aiProtocolRequest struct {
 	failureLabel string
 	protocol     string
 	formData     bool
+	// headers 是协议要求的额外请求头（例如豆包语音合成的 X-Api-Resource-Id），由 prepare 按模型填充。
+	headers map[string]string
 }
 
 type aiProtocolAdapter struct {
@@ -168,7 +170,7 @@ var builtinAIProtocols = []aiProtocolAdapter{
 	{
 		id: service.ModelChannelProtocolMiniMax,
 		path: func(channel model.ModelChannel, modelName string, path string) (string, bool) {
-			if !isMiniMaxH3Channel(channel, modelName) {
+			if !service.IsMiniMaxChannel(channel) {
 				return path, false
 			}
 			if path == "/videos" {
@@ -182,11 +184,12 @@ var builtinAIProtocols = []aiProtocolAdapter{
 			}
 			return path, true
 		},
+		prepare: prepareMiniMaxVideoRequest,
 		videoResponse: func(payload []byte, request *http.Request, channel model.ModelChannel, modelName string, status bool) ([]byte, bool) {
-			if status && isMiniMaxH3Channel(channel, modelName) && strings.Contains(request.URL.Path, "/v2/query/video_generation/") {
-				return transformMiniMaxVideoTaskResponse(payload)
+			if !status {
+				return nil, false
 			}
-			return nil, false
+			return prepareMiniMaxVideoResponse(payload, request, channel)
 		},
 	},
 	{
@@ -378,6 +381,20 @@ var builtinAIProtocols = []aiProtocolAdapter{
 		uploads: func(model.ModelChannel, map[string]bool) (map[string]directAIUpload, error) {
 			return nil, nil
 		},
+	},
+	{
+		id: service.ModelChannelProtocolDoubaoTTs,
+		path: func(channel model.ModelChannel, _ string, path string) (string, bool) {
+			if !service.IsDoubaoTTsChannel(channel) {
+				return path, false
+			}
+			if path == "/audio/speech" {
+				return doubaoTTsPath, true
+			}
+			return path, true
+		},
+		prepare:      prepareDoubaoTTsRequest,
+		copyResponse: copyDoubaoTTsResponse,
 	},
 	{
 		id: "model:agnes",

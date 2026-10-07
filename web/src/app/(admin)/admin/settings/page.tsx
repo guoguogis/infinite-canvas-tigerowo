@@ -10,13 +10,14 @@ import { EditorView } from "@uiw/react-codemirror";
 import { ChannelModelSelectorModal } from "@/components/channel-model-selector-modal";
 import type { WorkflowChannelSettings } from "@/components/workflow/workflow-channel-pane";
 import { useAutoDLWorkflowNames } from "@/hooks/use-autodl-workflow";
+import { audioVendorLabel, audioVendorVoiceOptions } from "@/lib/audio-vendor";
 import { isWorkflowProtocol, modelChannelApiKeyUrls, modelChannelDefaultBaseUrls, modelChannelProtocolOptions } from "@/lib/model-channel";
 import { startTokenDanceOAuth } from "@/lib/tokendance-oauth";
 import { fetchAdminSettings, fetchChannelModels, measureAdminStorageProvider, saveAdminSettings, testChannelModel, type AdminModelChannel, type AdminModelCost, type AdminSettings, type AdminStorageProvider } from "@/services/api/admin";
 import { clearStorageConfigCache as clearMediaStorageConfigCache } from "@/services/file-storage";
 import { clearStorageConfigCache as clearImageStorageConfigCache } from "@/services/image-storage";
 import { useUserStore } from "@/stores/use-user-store";
-import type { ModelCapabilities } from "@/stores/use-config-store";
+import { filterChannelModelsByCapability, type AiConfig, type ModelCapabilities } from "@/stores/use-config-store";
 
 const CodeMirror = dynamic(() => import("@uiw/react-codemirror"), { ssr: false });
 const WorkflowChannelPane = dynamic(() => import("@/components/workflow/workflow-channel-pane").then((module) => module.WorkflowChannelPane), { ssr: false });
@@ -44,6 +45,9 @@ const emptySettings: AdminSettings = {
             defaultImageModel: "",
             defaultVideoModel: "",
             defaultTextModel: "",
+            defaultAudioChannelId: "",
+            defaultAudioModel: "",
+            defaultAudioVoice: "",
             systemPrompt: "",
             systemPrompts: { image: "", video: "", text: "", workflow: "", workflowAgent: "" },
             allowCustomChannel: true,
@@ -93,6 +97,30 @@ export default function AdminSettingsPage() {
     const publicModelLabel = (model: string) => modelLabel(model, channels.find((channel) => channel.protocol === "autodl" && channel.models.includes(model)));
     const channelApiKeyUrl = channelProtocol ? modelChannelApiKeyUrls[channelProtocol] : undefined;
     const channelModels = useMemo(() => collectChannelModels(channels), [channels]);
+
+    // 默认音频配置：渠道 → 模型 → 音色 三级联动，音色允许手填私有音色 ID。
+    const audioDefaultChannelId = Form.useWatch(["public", "modelChannel", "defaultAudioChannelId"], form) || "";
+    const audioDefaultModel = Form.useWatch(["public", "modelChannel", "defaultAudioModel"], form) || "";
+    const audioDefaultVoice = Form.useWatch(["public", "modelChannel", "defaultAudioVoice"], form) || "";
+    const audioChannels = useMemo(() => channels.filter((channel) => filterChannelModelsByCapability([channel], "audio").length > 0), [channels]);
+    const audioChannelOptions = useMemo(() => audioChannels.map((channel) => ({ label: `${channel.name || channel.id}（${channel.protocol}）`, value: channel.id || "" })), [audioChannels]);
+    const audioDefaultChannel = audioChannels.find((channel) => channel.id === audioDefaultChannelId);
+    // 厂商判定需要把选中的渠道钉住，否则同名模型跨渠道时会判到别的协议上。
+    const audioVendorConfig = useMemo(
+        () => ({ channelMode: "remote", publicChannels: channels, activeChannelId: audioDefaultChannelId, audioChannelId: audioDefaultChannelId, model: audioDefaultModel, audioModel: audioDefaultModel, imageModel: "", videoModel: "", textModel: "" }) as unknown as AiConfig,
+        [channels, audioDefaultChannelId, audioDefaultModel],
+    );
+    const audioModelOptions = useMemo(
+        () => (audioDefaultChannel ? filterChannelModelsByCapability([audioDefaultChannel], "audio") : []).map((model) => ({ label: `${audioVendorLabel(audioVendorConfig, model)}-${model}`, value: model })),
+        [audioDefaultChannel, audioVendorConfig],
+    );
+    const audioVoiceOptions = useMemo(() => (audioDefaultModel ? audioVendorVoiceOptions(audioVendorConfig, audioDefaultModel) : []), [audioDefaultModel, audioVendorConfig]);
+    // 换渠道后原来选中的模型多半不属于该渠道，清掉避免存进无效组合。
+    useEffect(() => {
+        if (audioDefaultChannelId && audioDefaultModel && !audioModelOptions.some((item) => item.value === audioDefaultModel)) {
+            form.setFieldValue(["public", "modelChannel", "defaultAudioModel"], "");
+        }
+    }, [audioDefaultChannelId, audioDefaultModel, audioModelOptions, form]);
     const channelWorkflows = useMemo(() => collectChannelWorkflows(channels), [channels]);
     const channelTableData = useMemo(() => channels.map((channel, index) => ({ ...channel, _index: index, _rowKey: `${index}-${channel.name}-${channel.baseUrl}` })), [channels]);
     const activeMode = editorMode[activeTab];
@@ -463,6 +491,32 @@ export default function AdminSettingsPage() {
                                         <Form.Item name={["public", "modelChannel", "defaultTextModel"]} label="默认文本模型">
                                             <Select showSearch={{ optionFilterProp: ["label", "value"] }} allowClear options={publicModels.map((item) => ({ label: publicModelLabel(item), value: item }))} />
                                         </Form.Item>
+                                    </Col>
+                                    <Col span={24}>
+                                        <Typography.Title level={5}>默认音频配置</Typography.Title>
+                                        <Row gutter={16}>
+                                            <Col xs={24} md={8}>
+                                                <Form.Item name={["public", "modelChannel", "defaultAudioChannelId"]} label="渠道" className="mb-0">
+                                                    <Select showSearch={{ optionFilterProp: ["label", "value"] }} allowClear options={audioChannelOptions} />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col xs={24} md={8}>
+                                                <Form.Item name={["public", "modelChannel", "defaultAudioModel"]} label="模型（厂商-模型名）" extra="先选渠道，再选该渠道下的音频模型">
+                                                    <Select showSearch={{ optionFilterProp: ["label", "value"] }} allowClear options={audioModelOptions} />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col xs={24} md={8}>
+                                                <Form.Item
+                                                    name={["public", "modelChannel", "defaultAudioVoice"]}
+                                                    label="音色"
+                                                    extra="可直接输入私有音色 ID（声音复刻），资源 ID 由音色自动推导"
+                                                    getValueProps={(value: string) => ({ value: value ? [value] : [] })}
+                                                    getValueFromEvent={(values: string[]) => (Array.isArray(values) && values.length ? values[values.length - 1] : "")}
+                                                >
+                                                    <Select mode="tags" maxCount={1} showSearch={{ optionFilterProp: ["label", "value"] }} options={audioVoiceOptions} />
+                                                </Form.Item>
+                                            </Col>
+                                        </Row>
                                     </Col>
                                     <Col span={24}>
                                         <Typography.Title level={5}>内置/系统提示词</Typography.Title>

@@ -1,17 +1,20 @@
 "use client";
 
-import { CopyOutlined, DeleteOutlined, EditOutlined, ExportOutlined, EyeOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SyncOutlined } from "@ant-design/icons";
+import { CopyOutlined, DeleteOutlined, EditOutlined, ExportOutlined, EyeOutlined, FolderOpenOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SyncOutlined } from "@ant-design/icons";
 import { ProTable, type ProColumns } from "@ant-design/pro-components";
-import { Button, Card, Col, Flex, Form, Image, Input, Modal, Row, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
+import { Button, Card, Col, Flex, Form, Input, Modal, Row, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
 import { useEffect, useState } from "react";
 
+import { PromptCover, PromptPreview } from "@/components/prompts/prompt-cover";
 import { useCopyText } from "@/hooks/use-copy-text";
 import type { Prompt } from "@/services/api/prompts";
+import { PromptSourcesManager } from "./components/prompt-sources-manager";
 import { useAdminPrompts } from "./use-admin-prompts";
 
 export default function AdminPromptsPage() {
     const {
         categories,
+        sources,
         prompts,
         tags,
         keyword,
@@ -22,6 +25,7 @@ export default function AdminPromptsPage() {
         total,
         isLoading,
         isSyncing,
+        isSourceLoading,
         searchPrompts,
         changeCategory,
         changeTag,
@@ -31,6 +35,10 @@ export default function AdminPromptsPage() {
         refreshPrompts,
         syncCategory,
         syncAllCategories,
+        saveSource,
+        deleteSource,
+        syncSource,
+        syncAllSources,
         savePrompt: saveAdminPrompt,
         deletePrompt,
         deletePrompts,
@@ -41,6 +49,7 @@ export default function AdminPromptsPage() {
     const [editingPrompt, setEditingPrompt] = useState<Partial<Prompt> | null>(null);
     const [detailPrompt, setDetailPrompt] = useState<Prompt | null>(null);
     const [deletingPrompt, setDeletingPrompt] = useState<Prompt | null>(null);
+    const [isSourcesOpen, setIsSourcesOpen] = useState(false);
     const [selectedPromptIds, setSelectedPromptIds] = useState<string[]>([]);
     const [isBatchDeleteOpen, setIsBatchDeleteOpen] = useState(false);
     const [isSyncOpen, setIsSyncOpen] = useState(false);
@@ -80,7 +89,11 @@ export default function AdminPromptsPage() {
             title: "封面",
             dataIndex: "coverUrl",
             width: 88,
-            render: (_, item) => <Image src={item.coverUrl || "/logo.svg"} alt={item.title} width={56} height={42} style={{ objectFit: "cover", borderRadius: 6 }} preview={{ mask: "放大" }} fallback="/logo.svg" />,
+            render: (_, item) => (
+                <button type="button" title={item.videoUrl ? "点击预览视频" : "查看详情"} onClick={() => setDetailPrompt(item)}>
+                    <PromptCover url={item.coverUrl} title={item.title} hasVideo={Boolean(item.videoUrl)} className="h-[42px] w-[56px] rounded-md object-cover" />
+                </button>
+            ),
         },
         {
             title: "标题",
@@ -192,6 +205,9 @@ export default function AdminPromptsPage() {
                         <Button key="batch-delete" danger icon={<DeleteOutlined />} disabled={!selectedPromptIds.length} onClick={() => setIsBatchDeleteOpen(true)}>
                             批量删除{selectedPromptIds.length ? ` ${selectedPromptIds.length}` : ""}
                         </Button>,
+                        <Button key="sources" icon={<FolderOpenOutlined />} onClick={() => setIsSourcesOpen(true)}>
+                            提示词来源
+                        </Button>,
                         <Button key="sync" icon={<SyncOutlined />} onClick={() => setIsSyncOpen(true)}>
                             同步
                         </Button>,
@@ -225,6 +241,9 @@ export default function AdminPromptsPage() {
                     <Form.Item name="coverUrl" label="封面 URL">
                         <Input />
                     </Form.Item>
+                    <Form.Item name="videoUrl" label="视频 URL">
+                        <Input />
+                    </Form.Item>
                     <Form.Item name="tagText" label="标签，用逗号分隔">
                         <Input />
                     </Form.Item>
@@ -238,7 +257,9 @@ export default function AdminPromptsPage() {
                 {detailPrompt ? (
                     <Flex vertical gap={14}>
                         <Flex gap={14} align="start">
-                            <Image src={detailPrompt.coverUrl || "/logo.svg"} alt={detailPrompt.title} width={116} height={84} style={{ objectFit: "cover", borderRadius: 8 }} preview={{ mask: "放大" }} fallback="/logo.svg" />
+                            <div style={{ width: 220, flexShrink: 0 }}>
+                                <PromptPreview videoUrl={detailPrompt.videoUrl} coverUrl={detailPrompt.coverUrl} title={detailPrompt.title} className="aspect-[4/3] w-full rounded-lg bg-black object-cover" />
+                            </div>
                             <Flex vertical gap={8} style={{ minWidth: 0 }}>
                                 <Typography.Title level={5} style={{ margin: 0 }}>
                                     {detailPrompt.title}
@@ -344,6 +365,18 @@ export default function AdminPromptsPage() {
             <Modal title="批量删除提示词" open={isBatchDeleteOpen} onCancel={() => setIsBatchDeleteOpen(false)} onOk={() => void batchDeletePrompts()} okText="删除" okButtonProps={{ danger: true }} cancelText="取消">
                 确定删除已选中的 {selectedPromptIds.length} 条提示词吗？删除后会从当前分类中删除。
             </Modal>
+
+            <PromptSourcesManager
+                open={isSourcesOpen}
+                sources={sources}
+                loading={isSourceLoading}
+                syncing={isSyncing}
+                onClose={() => setIsSourcesOpen(false)}
+                onSave={saveSource}
+                onDelete={deleteSource}
+                onSync={syncSource}
+                onSyncAll={syncAllSources}
+            />
         </main>
     );
 }

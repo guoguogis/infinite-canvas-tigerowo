@@ -40,6 +40,10 @@ func TestModelProtocolProxyPathContract(t *testing.T) {
 		{"ark create", "ark", "https://ark.cn-beijing.volces.com/api/v3", "doubao-seedance-2.0", "/videos", "/contents/generations/tasks"},
 		{"ark poll", "ark", "https://ark.cn-beijing.volces.com/api/plan/v3", "doubao-seedance-2.0", "/videos/task a?b", "/contents/generations/tasks/task a?b"},
 		{"88api", "88api", "https://88api.ai/v1", "seedance-2.0-mini-720p", "/videos", "/videos"},
+		{"minimax seedance create", "minimax", "https://metaso.cn/api/minimax", "seedance-2.0", "/videos", "/v2/video_generation"},
+		{"minimax seedance poll", "minimax", "https://metaso.cn/api/minimax", "seedance-2.0", "/videos/task a?b", "/v2/query/video_generation/task%20a%3Fb"},
+		{"doubao tts speech", "doubao-tts", "https://openspeech.bytedance.com/api/v3/plan", "doubao-seed-tts-2.0", "/audio/speech", "/tts/unidirectional"},
+		{"doubao tts other endpoint kept", "doubao-tts", "https://openspeech.bytedance.com", "doubao-seed-tts-2.0", "/images/generations", "/images/generations"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -49,7 +53,7 @@ func TestModelProtocolProxyPathContract(t *testing.T) {
 			}
 		})
 	}
-	for _, protocol := range []string{"", "openai", "grok2api", "minimax", "mimo", "88api", "future-protocol"} {
+	for _, protocol := range []string{"", "openai", "grok2api", "mimo", "88api", "future-protocol"} {
 		for _, path := range []string{"/chat/completions", "/responses", "/images/generations", "/images/edits", "/audio/speech", "/videos", "/videos/task", "/models"} {
 			if got := resolveAIProxyPath(model.ModelChannel{Protocol: protocol}, "future-model", path); got != path {
 				t.Errorf("passthrough %q %q: got %q", protocol, path, got)

@@ -1,6 +1,8 @@
 package service
 
 import (
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/tigerowo/infinite-canvas/model"
@@ -16,13 +18,64 @@ func ListPrompts(q model.Query) (model.PromptList, error) {
 	if err != nil {
 		return model.PromptList{}, err
 	}
-	categories := promptCategoryCodes(ListPromptCategories())
+	categories := promptCategoryCodes(ListAllPromptCategories())
 	return model.PromptList{Items: items, Tags: tags, Categories: categories, Total: int(total)}, nil
 }
 
 func ListPromptCategories() []model.PromptCategory {
 	categories, _ := repository.ListPromptCategories()
 	return categories
+}
+
+// ListAllPromptCategories 返回提示词来源与内置分类合并后的分类列表。
+// 内置视频来源排在来源最前，随后是其它来源，最后是内置分类。
+func ListAllPromptCategories() []model.PromptCategory {
+	items := ListPromptCategories()
+	sources, err := repository.ListPromptSources()
+	if err != nil {
+		return items
+	}
+	builtin := map[string]bool{}
+	merged := make([]model.PromptCategory, 0, len(sources)+len(items))
+	for _, source := range sources {
+		if !source.Enabled {
+			continue
+		}
+		builtin[source.ID] = source.Kind == model.PromptSourceKindBuiltin
+		merged = append(merged, promptSourceCategory(source))
+	}
+	sort.SliceStable(merged, func(i, j int) bool {
+		return builtin[merged[i].Category] && !builtin[merged[j].Category]
+	})
+	return append(merged, items...)
+}
+
+func promptSourceCategory(source model.PromptSource) model.PromptCategory {
+	return model.PromptCategory{
+		Category:    source.ID,
+		Name:        source.Name,
+		Description: source.Name,
+		GithubURL:   source.Homepage,
+		SourceID:    source.ID,
+	}
+}
+
+// IsPromptSourceCategory 判断分类是否来自提示词来源。
+func IsPromptSourceCategory(category string) bool {
+	category = strings.TrimSpace(category)
+	if category == "" {
+		return false
+	}
+	sources, err := repository.ListPromptSources()
+	if err != nil {
+		return false
+	}
+	for _, source := range sources {
+		if source.ID == category {
+			return true
+		}
+	}
+	return false
 }
 
 func SavePrompt(item model.Prompt) (model.Prompt, error) {
@@ -35,12 +88,13 @@ func SavePrompt(item model.Prompt) (model.Prompt, error) {
 		item.CreatedAt = now
 	}
 	item.UpdatedAt = now
-	category, ok := repository.PromptCategoryByCode(item.Category)
-	if !ok {
-		category = repository.PromptCategories()[0]
-		item.Category = category.Category
-	}
 	item.GithubURL = ""
+	// 分类来自内置分类表或提示词来源时保留，否则回落到默认分类。
+	if category, ok := repository.PromptCategoryByCode(item.Category); ok {
+		item.Category = category.Category
+	} else if !IsPromptSourceCategory(item.Category) {
+		item.Category = repository.PromptCategories()[0].Category
+	}
 	return repository.SavePrompt(item)
 }
 

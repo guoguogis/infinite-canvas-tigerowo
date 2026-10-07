@@ -5,11 +5,11 @@ description: 画布本地存储、节点结构、媒体文件与清理机制
 
 # 画布数据结构
 
-本文档说明当前画布在前端本地保存的数据结构、图片文件的存储和清理方式，以及后续接入后端存储时建议保持的兼容边界。
+本文档说明画布项目在浏览器本地的保存结构、图片文件的存储和清理方式，以及账号同步与后端存储需要保持的兼容边界。
 
 ## 当前存储位置
 
-当前画布项目主要保存在浏览器本地：
+画布项目会始终在浏览器本地保存一份；账号同步可用时还会同步到账号/云端。当前本地存储位置如下：
 
 - 画布项目 JSON：`localForage`，数据库名 `infinite-canvas`，storeName `app_state`，key 为 `infinite-canvas:canvas_store`。
 - 我的素材 JSON：`localForage`，数据库名 `infinite-canvas`，storeName `app_state`，key 为 `infinite-canvas:asset_store`。

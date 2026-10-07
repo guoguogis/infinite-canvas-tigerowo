@@ -12,6 +12,7 @@ export type AdminPromptCategory = {
     file: string;
     githubUrl: string;
     remote: boolean;
+    sourceId?: string;
 };
 
 export type AdminUser = {
@@ -99,6 +100,48 @@ export async function syncAdminPromptCategory(token: string, category: string) {
 
 export async function syncAdminPromptCategoriesAll(token: string) {
     return apiPost<AdminPromptCategory[]>("/api/admin/prompt-categories/sync-all", {}, token);
+}
+
+export type AdminPromptSource = {
+    id: string;
+    name: string;
+    url: string;
+    homepage: string;
+    category: string;
+    kind: "remote" | "builtin";
+    enabled: boolean;
+    builtIn: boolean;
+    lastSyncAt: string;
+    lastError: string;
+    promptCount: number;
+};
+
+export type AdminPromptSourceInput = {
+    id?: string;
+    name: string;
+    url: string;
+    homepage?: string;
+    enabled?: boolean;
+};
+
+export async function fetchAdminPromptSources(token: string) {
+    return apiGet<AdminPromptSource[]>("/api/admin/prompt-sources", undefined, token);
+}
+
+export async function saveAdminPromptSource(token: string, source: AdminPromptSourceInput) {
+    return apiPost<AdminPromptSource[]>("/api/admin/prompt-sources", source, token);
+}
+
+export async function deleteAdminPromptSource(token: string, id: string) {
+    return apiDelete<AdminPromptSource[]>(`/api/admin/prompt-sources/${encodeURIComponent(id)}`, token);
+}
+
+export async function syncAdminPromptSource(token: string, id: string) {
+    return apiPost<AdminPromptSource[]>("/api/admin/prompt-sources/sync", { id }, token);
+}
+
+export async function syncAdminPromptSourcesAll(token: string) {
+    return apiPost<{ sources: AdminPromptSource[]; failures: Record<string, string> }>("/api/admin/prompt-sources/sync-all", {}, token);
 }
 
 export type AdminPromptQuery = {
@@ -209,6 +252,9 @@ export type AdminPublicModelChannelSettings = {
     defaultImageModel: string;
     defaultVideoModel: string;
     defaultTextModel: string;
+    defaultAudioChannelId: string;
+    defaultAudioModel: string;
+    defaultAudioVoice: string;
     systemPrompt: string;
     systemPrompts: {
         image: string;

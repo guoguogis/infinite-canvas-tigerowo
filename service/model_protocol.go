@@ -17,7 +17,9 @@ const (
 	ModelChannelProtocolAutoDL   = "autodl"
 	ModelChannelProtocolArk      = "ark"
 	ModelChannelProtocolTokenDance = "tokendance"
+	ModelChannelProtocolDoubaoTTs  = "doubao-tts"
 )
+
 
 type modelProtocolAdapter struct {
 	buildURL  func(model.ModelChannel, string) string
@@ -32,7 +34,7 @@ type modelProtocolRule struct {
 }
 
 var modelProtocolRegistry map[string]modelProtocolAdapter
-var modelProtocolIDs = []string{ModelChannelProtocolOpenAI, ModelChannelProtocolGemini, ModelChannelProtocolGrok2API, ModelChannelProtocolMiniMax, ModelChannelProtocolAPIMart, ModelChannelProtocolKIE, ModelChannelProtocolMiMo, ModelChannelProtocol88API, ModelChannelProtocolAutoDL, ModelChannelProtocolArk, ModelChannelProtocolTokenDance}
+var modelProtocolIDs = []string{ModelChannelProtocolOpenAI, ModelChannelProtocolGemini, ModelChannelProtocolGrok2API, ModelChannelProtocolMiniMax, ModelChannelProtocolAPIMart, ModelChannelProtocolKIE, ModelChannelProtocolMiMo, ModelChannelProtocol88API, ModelChannelProtocolAutoDL, ModelChannelProtocolArk, ModelChannelProtocolTokenDance, ModelChannelProtocolDoubaoTTs}
 
 func init() {
 	compatible := modelProtocolAdapter{
@@ -119,6 +121,22 @@ func init() {
 	glm := compatible
 	glm.testModel = testGLMTTSChannelModel
 	modelProtocolRegistry["model:glm-tts"] = glm
+
+	doubaoTTS := compatible
+	doubaoTTS.buildURL = func(channel model.ModelChannel, path string) string {
+		return normalizeModelChannelBaseURL(channel.BaseURL) + path
+	}
+	doubaoTTS.setAuth = func(request *http.Request, channel model.ModelChannel) {
+		// 豆包语音合成用 X-Api-Key，不使用 Bearer。
+		request.Header.Set("X-Api-Key", channel.APIKey)
+	}
+	doubaoTTS.models = func(model.ModelChannel) ([]string, error) {
+		return DoubaoTTsModels(), nil
+	}
+	doubaoTTS.testModel = func(model.ModelChannel, string) (string, error) {
+		return "豆包语音合成请在画布音频节点或音频创作入口试听。", nil
+	}
+	modelProtocolRegistry[ModelChannelProtocolDoubaoTTs] = doubaoTTS
 }
 
 // 发现模型、配置测试与生成的命中规则不同，分别保留原有优先级。
@@ -128,6 +146,7 @@ var modelDiscoveryRules = []modelProtocolRule{
 	{ModelChannelProtocolMiniMax, func(channel model.ModelChannel, _ string) bool { return IsMiniMaxChannel(channel) }},
 	{ModelChannelProtocolMiMo, func(channel model.ModelChannel, _ string) bool { return IsMiMoChannel(channel) }},
 	{ModelChannelProtocolArk, func(channel model.ModelChannel, _ string) bool { return IsArkChannel(channel) }},
+	{ModelChannelProtocolDoubaoTTs, func(channel model.ModelChannel, _ string) bool { return IsDoubaoTTsChannel(channel) }},
 	{ModelChannelProtocolKIE, func(channel model.ModelChannel, _ string) bool { return isKIEAdminChannel(channel) }},
 }
 
@@ -138,6 +157,7 @@ var modelConfigTestRules = []modelProtocolRule{
 		return strings.EqualFold(strings.TrimSpace(channel.Protocol), ModelChannelProtocol88API)
 	}},
 	{ModelChannelProtocolArk, func(channel model.ModelChannel, _ string) bool { return IsArkChannel(channel) }},
+	{ModelChannelProtocolDoubaoTTs, func(channel model.ModelChannel, _ string) bool { return IsDoubaoTTsChannel(channel) }},
 }
 
 var modelGenerationTestRules = []modelProtocolRule{

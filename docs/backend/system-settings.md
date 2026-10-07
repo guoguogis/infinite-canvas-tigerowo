@@ -67,7 +67,7 @@ description: settings 表中 public 和 private 配置结构说明
 | 模式 | 说明 |
 | --- | --- |
 | 云端渠道 | 使用后端 `/api/v1/*` 代理接口，请求会按模型名匹配 `private.value.channels` 中的可用渠道 |
-| 本地直连 | 默认可选；`allowCustomChannel` 关闭后不可选，用户在浏览器本地配置 `baseUrl`、`apiKey` 和模型列表后直接请求模型接口 |
+| 本地直连 | 默认可选；`allowCustomChannel` 关闭后不可选，用户登录后在浏览器本地配置 `baseUrl`、`apiKey` 和模型列表后直接请求模型接口 |
 
 `auth` 字段：
 

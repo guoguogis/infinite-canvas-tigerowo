@@ -224,7 +224,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
                     <div className="space-y-1.5">
                         {treeRows.map(({ node, depth, hasChildren }) => {
                             const Icon = NODE_TYPE_ICON[node.type] || FileText;
-                            const hasImage = isCanvasImageNodeType(node.type) && node.metadata?.content;
+                            const thumbnail = isCanvasImageNodeType(node.type) || node.type === CanvasNodeType.Video ? node.metadata?.content || "" : "";
                             const active = selectedNodeIds.has(node.id);
                             return (
                                 <div key={node.id} className={cn("relative flex items-center rounded-lg transition", depth && "ml-5", active ? "" : "hover:bg-black/5 dark:hover:bg-white/5")} style={active ? { background: theme.toolbar.activeBg } : undefined}>
@@ -243,7 +243,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
                                         className={cn("flex min-w-0 flex-1 items-center gap-3 py-2 pr-2 text-left", node.type === CanvasNodeType.Group && hasChildren ? "pl-0" : "pl-2")}
                                     >
                                         <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md">
-                                            {hasImage ? <img src={node.metadata?.content} alt={node.title} className="size-full object-cover" /> : <Icon className="size-5 opacity-60" />}
+                                            {thumbnail ? node.type === CanvasNodeType.Video ? <video src={thumbnail + "#t=0.1"} muted playsInline preload="metadata" className="size-full object-cover" /> : <img src={thumbnail} alt={node.title} className="size-full object-cover" /> : <Icon className="size-5 opacity-60" />}
                                         </span>
                                         <span className="min-w-0 flex-1 space-y-0.5">
                                             <span className="block truncate text-sm font-medium leading-snug">{node.title || NODE_TYPE_LABEL[node.type] || "未命名节点"}</span>

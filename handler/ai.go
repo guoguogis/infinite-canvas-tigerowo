@@ -173,6 +173,9 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		return
 	}
 	service.SetModelChannelAuthHeader(request, channel)
+	for key, value := range prepared.headers {
+		request.Header.Set(key, value)
+	}
 	if contentType != "" {
 		request.Header.Set("Content-Type", contentType)
 	}

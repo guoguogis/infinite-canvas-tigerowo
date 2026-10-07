@@ -10,3 +10,4 @@ data/
 web/public/InfiniteCanvas-ComfyBridge*
 .DS_Store
 .idea
+/server.exe

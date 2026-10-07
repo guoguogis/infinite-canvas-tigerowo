@@ -7,7 +7,8 @@ import { AppTopNav } from "@/components/layout/app-top-nav";
 import { fetchUserConfig } from "@/services/api/user-config";
 import { useUserStore } from "@/stores/use-user-store";
 
-const protectedPrefixes = ["/asset-library"];
+// 只有这些入口允许未登录访问；其余页面统一要求登录。
+const publicPrefixes = ["/login", "/register", "/tokendance/callback"];
 
 export default function UserLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
@@ -15,12 +16,15 @@ export default function UserLayout({ children }: { children: ReactNode }) {
     const user = useUserStore((state) => state.user);
     const isReady = useUserStore((state) => state.isReady);
     const wasLoggedOutRef = useRef(false);
-    const isProtectedPage = protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+    const isPublicPage = publicPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+    const needsAuth = !isPublicPage;
+    // 登录/注册入口只展示主窗口，不显示顶部菜单栏。
+    const isAuthEntry = pathname === "/login" || pathname.startsWith("/login/") || pathname === "/register" || pathname.startsWith("/register/");
 
     useEffect(() => {
-        if (!isReady || !isProtectedPage || user) return;
+        if (!isReady || !needsAuth || user) return;
         router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
-    }, [isProtectedPage, isReady, pathname, router, user]);
+    }, [isReady, needsAuth, pathname, router, user]);
 
     useEffect(() => {
         if (!isReady) return;
@@ -51,8 +55,8 @@ export default function UserLayout({ children }: { children: ReactNode }) {
 
     return (
         <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
-            <AppTopNav />
-            <div className="min-h-0 flex-1 overflow-hidden">{isProtectedPage && (!isReady || !user) ? null : children}</div>
+            {isAuthEntry ? null : <AppTopNav />}
+            <div className="min-h-0 flex-1 overflow-hidden">{needsAuth && (!isReady || !user) ? null : children}</div>
         </div>
     );
 }

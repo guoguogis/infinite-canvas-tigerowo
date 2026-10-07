@@ -19,6 +19,9 @@ func main() {
 	if err := service.EnsureDefaultAgentSkills(); err != nil {
 		log.Fatal(err)
 	}
+	if err := service.EnsureDefaultPromptSources(); err != nil {
+		log.Fatal(err)
+	}
 	service.StartPromptSyncScheduler()
 	service.StartCanvasProjectCleanupScheduler()
 	handler.StartVideoTaskPoller()

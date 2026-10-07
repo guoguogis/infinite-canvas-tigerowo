@@ -5,6 +5,7 @@ import { audioMimeType, isGlmTtsModel, normalizeAudioFormatValue, normalizeAudio
 import { isAutoDLConfig } from "@/lib/autodl";
 import { isGrok2APITtsConfig, normalizeGrokTtsFormat, normalizeGrokTtsLanguage, normalizeGrokTtsSpeed, type GrokTtsVoice } from "@/lib/grok-tts";
 import { isMimoPresetTtsModel, isMimoTtsModel, isMimoVoiceCloneModel, isMimoVoiceDesignModel, normalizeMimoTtsFormat, normalizeMimoTtsVoice } from "@/lib/mimo-tts";
+import { isDoubaoTTsConfig, normalizeDoubaoTTsVoice } from "@/lib/doubao-tts";
 import { modelChannelAttributionHeaders } from "@/lib/model-channel";
 import { geminiActionUrl, geminiDirectHeaders, geminiErrorMessage, isGeminiConfig, isGeminiTtsModel } from "@/lib/gemini";
 import { geminiPcmBase64ToWav, normalizeGeminiTtsVoice } from "@/lib/gemini-tts";
@@ -246,7 +247,7 @@ async function buildAudioSpeechRequest(config: AiConfig, model: string, prompt: 
     return {
         model,
         input: prompt,
-        voice: normalizeAudioVoiceValue(config.audioVoice),
+        voice: isDoubaoTTsConfig(config, model) ? normalizeDoubaoTTsVoice(config.audioVoice) : normalizeAudioVoiceValue(config.audioVoice),
         response_format: normalizeAudioFormatValue(config.audioFormat),
         speed: Number(normalizeAudioSpeedValue(config.audioSpeed)),
         ...(instructions ? { instructions } : {}),

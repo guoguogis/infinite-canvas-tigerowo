@@ -213,7 +213,8 @@ function resolveEffectiveConfig(config: AiConfig, modelChannel: AdminPublicSetti
     const fallbackModel = validDefault(modelChannel.defaultModel, textModels) || fallbackTextModel;
     const fallbackImageModel = validDefault(modelChannel.defaultImageModel, imageModels) || preferredModel(imageModels, isImageModelName) || imageModels[0] || "";
     const fallbackVideoModel = validDefault(modelChannel.defaultVideoModel, videoModels) || preferredModel(videoModels, isVideoModelName) || videoModels[0] || "";
-    const fallbackAudioModel = preferredModel(audioModels, isAudioModelName) || audioModels[0] || "";
+    const fallbackAudioModel = validDefault(modelChannel.defaultAudioModel, audioModels) || preferredModel(audioModels, isAudioModelName) || audioModels[0] || "";
+    const fallbackAudioVoice = modelChannel.defaultAudioVoice || "";
     return {
         ...config,
         channelMode,
@@ -227,6 +228,9 @@ function resolveEffectiveConfig(config: AiConfig, modelChannel: AdminPublicSetti
         videoModel: videoModels.includes(config.videoModel) ? config.videoModel : fallbackVideoModel,
         textModel: textModels.includes(config.textModel) ? config.textModel : fallbackTextModel || fallbackModel,
         audioModel: audioModels.includes(config.audioModel) ? config.audioModel : fallbackAudioModel,
+        // 公开配置的默认音频渠道/音色只在用户没自己选过时生效。
+        audioChannelId: config.audioChannelId || modelChannel.defaultAudioChannelId || "",
+        audioVoice: config.audioVoice && config.audioVoice !== defaultConfig.audioVoice ? config.audioVoice : fallbackAudioVoice || config.audioVoice,
         systemPrompt: modelChannel.systemPrompt,
         publicChannels: modelChannel.channels || [],
     };
@@ -337,6 +341,8 @@ export function modelMatchesCapability(model: string, capability?: ModelCapabili
         if (capability === "audio") return model === "indextts2-v1";
         return capability === "video" && (model.startsWith("minimax_h3_") || model === "wan2.2animate-v4-motion_retargeting");
     }
+    // 豆包语音合成渠道只承载音频模型，不按模型名判断能力。
+    if (protocol === "doubao-tts") return capability === "audio";
     if (protocol === "gemini") {
         const value = model.toLowerCase();
         const video = /^models\/veo-|^veo-/.test(value);

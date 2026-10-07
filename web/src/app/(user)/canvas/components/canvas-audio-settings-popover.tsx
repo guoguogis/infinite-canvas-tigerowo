@@ -8,13 +8,14 @@ import { Button } from "antd";
 import { AudioSettingsPanel, type AudioSettingKey } from "@/components/audio-settings-panel";
 import { isAutoDLConfig } from "@/lib/autodl";
 import { audioFormatLabel, audioSpeedLabel, audioVoiceLabel, glmTtsVoiceLabel, isGlmTtsModel, normalizeGlmTtsFormat, normalizeGlmTtsSpeed } from "@/lib/audio-generation";
+import { doubaoTtsVoiceLabel, isDoubaoTTsConfig } from "@/lib/doubao-tts";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { isGrok2APITtsConfig, normalizeGrokTtsFormat, normalizeGrokTtsLanguage, normalizeGrokTtsSpeed } from "@/lib/grok-tts";
 import { isMimoPresetTtsModel, isMimoTtsModel, isMimoVoiceCloneModel, isMimoVoiceDesignModel, mimoTtsVoiceLabel, normalizeMimoTtsFormat } from "@/lib/mimo-tts";
 import { isGeminiConfig, isGeminiTtsModel } from "@/lib/gemini";
 import { normalizeGeminiTtsVoice } from "@/lib/gemini-tts";
 import { useThemeStore } from "@/stores/use-theme-store";
-import type { AiConfig } from "@/stores/use-config-store";
+import { channelIdForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { ResourceSinglePicker, type CanvasVideoResourceOption } from "./canvas-video-settings-popover";
 import type { CanvasNodeMetadata } from "../types";
 
@@ -112,7 +113,7 @@ function AudioSettingsPortal({ buttonRect, panelRef, placement, theme, config, o
                         onChange={(value) => onMetadataChange?.(isAutoDLConfig(config, model) ? { referenceAudioNodeId: value || undefined } : { mimoVoiceCloneAudioNodeId: value || undefined })}
                     />
                 ) : null}
-                <AudioSettingsPanel config={config} onConfigChange={onConfigChange} theme={theme} showTitle={false} className="space-y-4" />
+                <AudioSettingsPanel config={config} onConfigChange={onConfigChange} theme={theme} showTitle={false} className="space-y-4" onModelChange={onMetadataChange ? (model) => onMetadataChange({ model, channelId: channelIdForActiveModel({ ...config, model, audioModel: model }) }) : undefined} />
             </div>
         </div>,
         document.body,
@@ -129,6 +130,7 @@ function audioSettingsSummary(config: AiConfig, cloneAudioNodeId: string, audioO
     if (isGeminiTtsModel(model) && isGeminiConfig(config, model)) return normalizeGeminiTtsVoice(config.geminiTtsVoice);
     if (isGlmTtsModel(model)) return `${glmTtsVoiceLabel(config.glmTtsVoice)} · ${normalizeGlmTtsFormat(config.glmTtsFormat).toUpperCase()} · ${normalizeGlmTtsSpeed(config.glmTtsSpeed)}x`;
     if (isGrok2APITtsConfig(config, model)) return `${config.grokTtsVoice || "eve"} · ${normalizeGrokTtsLanguage(config.grokTtsLanguage)} · ${normalizeGrokTtsFormat(config.grokTtsFormat).toUpperCase()} · ${normalizeGrokTtsSpeed(config.grokTtsSpeed)}x`;
+    if (isDoubaoTTsConfig(config, model)) return `${doubaoTtsVoiceLabel(config.audioVoice)} · ${audioFormatLabel(config.audioFormat)} · ${audioSpeedLabel(config.audioSpeed)}`;
     if (!isMimoTtsModel(model)) return `${audioVoiceLabel(config.audioVoice)} · ${audioFormatLabel(config.audioFormat)} · ${audioSpeedLabel(config.audioSpeed)}`;
     const format = normalizeMimoTtsFormat(config.mimoTtsFormat).toUpperCase();
     if (isMimoPresetTtsModel(model)) return `${mimoTtsVoiceLabel(config.mimoTtsVoice)} · ${format}`;

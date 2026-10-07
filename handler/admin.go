@@ -18,12 +18,12 @@ type adminBatchDeleteRequest struct {
 }
 
 func AdminPromptCategories(w http.ResponseWriter, r *http.Request) {
-	OK(w, service.ListPromptCategories())
+	OK(w, service.ListAllPromptCategories())
 }
 
 func AdminSyncAllPromptCategories(w http.ResponseWriter, r *http.Request) {
 	service.SyncRemotePromptCategories()
-	OK(w, service.ListPromptCategories())
+	OK(w, service.ListAllPromptCategories())
 }
 
 func AdminPrompts(w http.ResponseWriter, r *http.Request) {

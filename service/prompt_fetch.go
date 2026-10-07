@@ -80,7 +80,7 @@ func SyncPromptCategory(category string) ([]model.PromptCategory, error) {
 		if err := repository.ReplacePromptCategory(item, items); err != nil {
 			return nil, err
 		}
-		return repository.ListPromptCategories()
+		return ListAllPromptCategories(), nil
 	}
 	return nil, errors.New("未知提示词分类")
 }
