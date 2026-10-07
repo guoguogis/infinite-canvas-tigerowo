@@ -1,9 +1,9 @@
 "use client";
 
-import localforage from "localforage";
 import { nanoid } from "nanoid";
 import { create } from "zustand";
 
+import { userLocalStore } from "@/lib/user-localforage";
 import { AGENT_SKILL_CONTENT_MAX_LENGTH, deleteUserAgentSkill, fetchSystemAgentSkills, fetchUserAgentSkills, saveUserAgentSkill, type AgentSkill } from "@/services/api/agent-skills";
 import { deleteStoredImages } from "@/services/image-storage";
 import { useUserStore } from "@/stores/use-user-store";
@@ -18,7 +18,7 @@ type AgentSkillStore = {
     deleteSkill: (id: string) => Promise<void>;
 };
 
-const localSkillStore = localforage.createInstance({ name: "infinite-canvas", storeName: "agent_skills" });
+const localSkillStore = userLocalStore("agent_skills");
 const localSkillKey = "items";
 let loadedSkillsKey = "";
 let loadSkillsPromise: Promise<void> | null = null;

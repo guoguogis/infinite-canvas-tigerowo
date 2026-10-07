@@ -2,10 +2,10 @@
 import axios from "axios";
 
 import { AlertCircle, ArrowLeft, ArrowRight, BookOpen, CheckSquare, ChevronDown, ChevronUp, ClipboardPaste, CloudUpload, Copy, Download, FolderPlus, History, LoaderCircle, Music2, PanelBottom, PanelLeft, Plus, RotateCcw, SlidersHorizontal, Sparkles, Trash2, Upload, VideoIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense, type ReactNode } from "react";
 import { App, Button, Checkbox, Empty, Input, Modal, Switch, Tag, Typography } from "antd";
-import localforage from "localforage";
 import { nanoid } from "nanoid";
+import { useSearchParams } from "next/navigation";
 import { saveAs } from "file-saver";
 
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
@@ -32,6 +32,7 @@ import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 import { parseWorkflowRef, type WorkflowRef } from "@/lib/workflow-channel";
+import { userLocalStore } from "@/lib/user-localforage";
 
 const cogVideoX3DurationOptions = COGVIDEOX3_DURATIONS.map((value) => ({ value, label: `${value}s` }));
 
@@ -106,8 +107,18 @@ type AssetPickerTarget = "general" | "image" | "video" | "audio" | "firstFrame" 
 type WorkflowPollContext = { token: string; signal: AbortSignal };
 
 const WORKBENCH_LAYOUT_KEY = "infinite-canvas:video-workbench-layout";
-const logStore = localforage.createInstance({ name: "infinite-canvas", storeName: "video_generation_logs" });
+const logStore = userLocalStore("video_generation_logs");
+
 export default function VideoPage() {
+    return (
+        <Suspense fallback={null}>
+            <VideoPageContent />
+        </Suspense>
+    );
+}
+
+function VideoPageContent() {
+    const searchParams = useSearchParams();
     const { message } = App.useApp();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const elementFileInputRef = useRef<HTMLInputElement>(null);
@@ -1126,6 +1137,20 @@ export default function VideoPage() {
         void submitGenerationSnapshot(snapshot);
     };
 
+    // 「我的任务」跳转过来时定位到对应记录（?task=<任务id 或日志 id>）。
+    const focusTaskId = searchParams.get("task") || "";
+    const focusedTaskRef = useRef("");
+    useEffect(() => {
+        if (!focusTaskId || focusedTaskRef.current === focusTaskId || !logs.length) return;
+        const log = logs.find((item) => item.id === focusTaskId || item.task?.id === focusTaskId || item.task?.task_id === focusTaskId);
+        if (!log) return;
+        focusedTaskRef.current = focusTaskId;
+        previewGenerationLog(log);
+        window.requestAnimationFrame(() => {
+            document.querySelector(`[data-log-id="${CSS.escape(log.id)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+        });
+    }, [focusTaskId, logs]);
+
     return (
         <div className="flex h-full flex-col overflow-hidden bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100">
             <main className={`${workbenchLayout === "side" ? "grid grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)]" : "relative flex flex-col"} min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:overflow-hidden`}>
@@ -1931,7 +1956,7 @@ function ResultsPanel({
             </div>
             {totalCount ? (
                 <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-                    {visibleResults.map((result, index) => (result.status === "success" && result.video ? <ResultVideoCard key={result.id} result={result} video={result.video} index={index} syncing={syncingVideoIds.includes(result.video.id)} onCopyPrompt={onCopyPrompt} onDownload={onDownload} onSync={(video) => onSyncResult(result.id, video, index)} onSaveAsset={onSaveAsset} /> : result.status === "failed" ? <FailedVideoCard key={result.id} result={result} error={result.error || "生成失败"} onCopyPrompt={onCopyPrompt} onPreview={() => onPreviewResult(result)} onRetry={() => onRetryResult(result)} /> : <PendingVideoCard key={result.id} result={result} now={now} onCopyPrompt={onCopyPrompt} />))}
+                    {visibleResults.map((result, index) => (result.status === "success" && result.video ? <ResultVideoCard key={result.id} result={result} video={result.video} index={index} syncing={syncingVideoIds.includes(result.video.id)} onCopyPrompt={onCopyPrompt} onDownload={onDownload} onSync={(video) => onSyncResult(result.id, video, index)} onSaveAsset={onSaveAsset} /> : result.status === "failed" ? <FailedVideoCard key={result.id} result={result} error={result.error || "生成失败"} onCopyPrompt={onCopyPrompt} onPreview={() => onPreviewResult(result)} onRetry={() => onRetryResult(result)} /> : <PendingVideoCard key={result.id} result={result} now={now} active={Boolean(activeLogId) && (activeLogId === result.taskLogId || activeLogId === result.id)} onCopyPrompt={onCopyPrompt} />))}
                     {visibleLogs.map((log, index) => (
                         <HistoryLogCard key={log.id} log={log} index={index} selected={selectedLogIds.includes(log.id)} active={activeLogId === log.id} syncing={Boolean(log.video && syncingVideoIds.includes(log.video.id))} onSelectedChange={(checked) => onSelectedLogIdsChange(checked ? [...selectedLogIds, log.id] : selectedLogIds.filter((id) => id !== log.id))} onDelete={() => onDeleteLog(log)} onPreview={() => onPreviewLog(log)} onRetry={() => onRetryLog(log)} onCopyPrompt={onCopyPrompt} onDownload={onDownload} onSync={(video) => onSyncLog(log, video, index)} onSaveAsset={onSaveAsset} />
                     ))}
@@ -1967,11 +1992,11 @@ function ResultVideoCard({ result, video, index, syncing, onCopyPrompt, onDownlo
     );
 }
 
-function PendingVideoCard({ result, now, onCopyPrompt }: { result: GenerationResult; now: number; onCopyPrompt: (text: string) => void | Promise<void> }) {
+function PendingVideoCard({ result, now, active, onCopyPrompt }: { result: GenerationResult; now: number; active?: boolean; onCopyPrompt: (text: string) => void | Promise<void> }) {
     const progress = typeof result.progress === "number" ? Math.max(0, Math.min(100, Math.floor(result.progress))) : null;
     const durationMs = Math.max(0, now - result.createdAt);
     return (
-        <div className="overflow-hidden rounded-lg border border-dashed border-stone-300 bg-stone-50 dark:border-stone-700 dark:bg-stone-900">
+        <div data-log-id={result.taskLogId || result.id} className={`overflow-hidden rounded-lg border border-dashed bg-stone-50 dark:bg-stone-900 ${active ? "border-stone-900 dark:border-stone-100" : "border-stone-300 dark:border-stone-700"}`}>
             <div className="relative aspect-video">
                 <div className="absolute inset-0 opacity-60" style={{ backgroundImage: "radial-gradient(circle, rgba(120,113,108,0.35) 1.4px, transparent 1.6px)", backgroundSize: "16px 16px" }} />
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-stone-500 dark:text-stone-400">
@@ -2028,7 +2053,7 @@ function HistoryLogCard({ log, index, selected, active, syncing, onSelectedChang
     const [expanded, setExpanded] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
     return (
-        <div className={`overflow-hidden rounded-lg border bg-background dark:bg-stone-950 ${active ? "border-stone-900 dark:border-stone-100" : "border-stone-200 dark:border-stone-800"}`}>
+        <div data-log-id={log.id} className={`overflow-hidden rounded-lg border bg-background dark:bg-stone-950 ${active ? "border-stone-900 dark:border-stone-100" : "border-stone-200 dark:border-stone-800"}`}>
             <div className="relative aspect-video bg-stone-100 dark:bg-stone-900">
                 <div className="absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md bg-white/85 px-1.5 py-1 shadow-sm dark:bg-stone-950/80">
                     <Checkbox checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} />

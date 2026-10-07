@@ -95,3 +95,21 @@ func DeleteFinishedVideoTasksBefore(before string) error {
 		Where("status IN ?", []string{"completed", "failed", "cancelled", "canceled"}).
 		Delete(&model.VideoTask{}).Error
 }
+
+// ListActiveVideoTasks 列出执行中的视频任务，userID 为空时返回全部用户。
+func ListActiveVideoTasks(userID string, limit int) ([]model.VideoTask, error) {
+	db, err := DB()
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	var tasks []model.VideoTask
+	query := db.Where("status IN ?", []string{"queued", "in_progress", "processing", "running"})
+	if userID != "" {
+		query = query.Where("user_id = ?", userID)
+	}
+	err = query.Order("created_at DESC").Limit(limit).Find(&tasks).Error
+	return tasks, err
+}

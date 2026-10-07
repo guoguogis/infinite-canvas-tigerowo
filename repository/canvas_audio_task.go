@@ -34,3 +34,21 @@ func GetUserCanvasAudioTask(userID string, id string) (model.CanvasAudioTask, bo
 	}
 	return task, true, nil
 }
+
+// ListActiveCanvasAudioTasks 列出执行中的音频任务，userID 为空时返回全部用户。
+func ListActiveCanvasAudioTasks(userID string, limit int) ([]model.CanvasAudioTask, error) {
+	db, err := DB()
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	var tasks []model.CanvasAudioTask
+	query := db.Where("status IN ?", []string{"queued", "processing", "running", "in_progress"})
+	if userID != "" {
+		query = query.Where("user_id = ?", userID)
+	}
+	err = query.Order("created_at DESC").Limit(limit).Find(&tasks).Error
+	return tasks, err
+}

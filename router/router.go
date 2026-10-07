@@ -23,7 +23,7 @@ func New() *gin.Engine {
 	api.GET("/auth/me", middleware.OptionalAuth, gin.WrapF(handler.CurrentUser))
 	api.GET("/settings", gin.WrapF(handler.Settings))
 	api.GET("/storage/config", gin.WrapF(handler.StorageConfig))
-	api.GET("/files/:id", func(c *gin.Context) {
+	api.GET("/files/:id", middleware.UserAuth, func(c *gin.Context) {
 		handler.FileInfo(c.Writer, c.Request, c.Param("id"))
 	})
 	api.GET("/files/:id/content", func(c *gin.Context) {
@@ -145,6 +145,7 @@ func New() *gin.Engine {
 	})
 	admin.GET("/ai-logs", gin.WrapF(handler.AdminAICallLogs))
 	admin.DELETE("/ai-logs", gin.WrapF(handler.AdminDeleteAICallLogs))
+	admin.GET("/tasks", gin.WrapF(handler.AdminRunningTasks))
 	admin.GET("/settings", gin.WrapF(handler.AdminSettings))
 	admin.POST("/settings", gin.WrapF(handler.AdminSaveSettings))
 	admin.POST("/settings/channel-models", gin.WrapF(handler.AdminChannelModels))

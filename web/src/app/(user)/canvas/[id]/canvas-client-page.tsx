@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from "react";
 import type { ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import dynamic from "next/dynamic";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Download, Globe2, Home, ImageIcon, Images, Layers3, List, Maximize, Menu, Bot, Music2, PanelLeftClose, PanelLeftOpen, Pause, Play, Plus, Redo2, Settings2, Trash2, Undo2, Upload, Video, Volume2, VolumeX, X } from "lucide-react";
 import { saveAs } from "file-saver";
 
@@ -172,7 +172,16 @@ export default function CanvasPage() {
 
     if (!mounted) return <CanvasRefreshShell />;
 
-    return <InfiniteCanvasPage key={params.id} projectId={params.id} />;
+    return (
+        <Suspense fallback={<CanvasRefreshShell />}>
+            <CanvasProjectRoute projectId={params.id} />
+        </Suspense>
+    );
+}
+
+function CanvasProjectRoute({ projectId }: { projectId: string }) {
+    const searchParams = useSearchParams();
+    return <InfiniteCanvasPage key={projectId} projectId={projectId} focusNodeId={searchParams.get("nodeId") || ""} />;
 }
 
 function CanvasRefreshShell() {
@@ -303,7 +312,7 @@ function NodeCreateMenu({
     );
 }
 
-function InfiniteCanvasPage({ projectId }: { projectId: string }) {
+function InfiniteCanvasPage({ projectId, focusNodeId }: { projectId: string; focusNodeId: string }) {
     const { message } = App.useApp();
     const router = useRouter();
     const containerRef = useRef<HTMLDivElement>(null);
@@ -4033,6 +4042,16 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     useEffect(() => () => {
         if (focusAnimationRef.current) cancelAnimationFrame(focusAnimationRef.current);
     }, []);
+
+    // 「我的任务」跳转过来时定位到对应节点（?nodeId=<节点 id>）。
+    const focusedNodeIdRef = useRef("");
+    useEffect(() => {
+        if (!focusNodeId || focusedNodeIdRef.current === focusNodeId) return;
+        if (!projectLoaded || !size.width || !size.height) return;
+        if (!nodes.some((node) => node.id === focusNodeId)) return;
+        focusedNodeIdRef.current = focusNodeId;
+        focusNode(focusNodeId);
+    }, [focusNode, focusNodeId, nodes, projectLoaded, size.height, size.width]);
 
     if (!projectLoaded) return <CanvasRefreshShell />;
     return (

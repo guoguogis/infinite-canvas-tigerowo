@@ -95,6 +95,24 @@ func HasActiveCanvasImageTasks() (bool, error) {
 	return count > 0, err
 }
 
+// ListActiveCanvasImageTasks 列出执行中的图片任务，userID 为空时返回全部用户。
+func ListActiveCanvasImageTasks(userID string, limit int) ([]model.CanvasImageTask, error) {
+	db, err := DB()
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	var tasks []model.CanvasImageTask
+	query := db.Where("status IN ?", []string{"queued", "processing", "running", "in_progress"})
+	if userID != "" {
+		query = query.Where("user_id = ?", userID)
+	}
+	err = query.Order("created_at DESC").Limit(limit).Find(&tasks).Error
+	return tasks, err
+}
+
 func DeleteFinishedCanvasImageTasksBefore(before string) error {
 	db, err := DB()
 	if err != nil {

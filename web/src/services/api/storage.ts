@@ -1,5 +1,6 @@
 import { apiDelete, apiGet, apiPost } from "@/services/api/request";
 import type { UserWebDAVStorageProvider } from "@/services/image-storage";
+import { useUserStore } from "@/stores/use-user-store";
 
 export type RegisteredStorageObject = {
     url: string;
@@ -12,13 +13,14 @@ export type StorageObjectInfo = {
     id: string;
     objectKey: string;
     publicUrl: string;
+    contentUrl: string;
     mimeType: string;
     bytes: number;
     direct: boolean;
 };
 
 export function getStorageObjectInfo(id: string) {
-    return apiGet<StorageObjectInfo>(`/api/files/${encodeURIComponent(id)}`);
+    return apiGet<StorageObjectInfo>(`/api/files/${encodeURIComponent(id)}`, undefined, useUserStore.getState().token || undefined);
 }
 
 export function registerDirectStorageObject(

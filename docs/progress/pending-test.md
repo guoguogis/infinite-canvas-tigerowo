@@ -85,3 +85,37 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 首页改为「控制台」：按「我的画布 / 我的视频 / 我的图片」三行展示历史记录，原落地页已删除；顶栏品牌文字与浏览器标题由「无限画布」改为「控制台」；右上角 GitHub 图标入口与顶部广告栏已移除，`github-link.tsx` 与 `announcement-banner.tsx` 两个组件文件已删除；登录页不显示顶部菜单栏。
 - 管理后台 `(admin)` 目录原本就有独立守卫，本次未改动。
 - 验证点：未登录访问任意页面（画布、素材、提示词库、生图/视频工作台等）都会跳到登录页，登录后回到原路径；首页显示三行历史记录且「查看全部」可进入对应页面；顶栏不再出现 GitHub 图标和顶部广告栏；管理后台登录守卫行为不变。
+
+## 浏览器本地数据按账号隔离
+
+- `web/src/lib/user-localforage.ts` 新增 `userLocalStore(storeName)`：返回惰性代理，按当前登录用户解析独立的 localforage object store（命名 `<用户id>__<原名>`），未登录回退 `guest`。因为 zustand persist 在模块加载时就会读取一次本地数据，用户 id 会先从已持久化的登录 token（JWT 的 `userId` / `sub`）同步解析，保证首次加载就读到自己的命名空间。
+- 已切换的库：`video_generation_logs`、`image_generation_logs`、`image_generation_categories`、`media_files`、`image_files`、`creative_workflows`、`agent_skills`、`app_state`（画布项目与素材 store）。`workflow_channels` 原本就以账号 id 作为 key，未改动。
+- 新增 `useUserLocalStorageScope()`（挂在 `(user)/layout.tsx`）：登录用户确定后对画布与素材 store 执行 `persist.rehydrate()`，因此同一浏览器换号登录不会看到上一个账号的数据；本地画布为空且账号同步开启时会从账号补拉一次。
+- 旧数据不迁移：改动前的全局命名空间数据不再被读取；画布项目会由账号同步补回，纯本地且未同步到账号的媒体不会恢复。
+- 验证点：同一浏览器登录 A 账号建画布、生成视频，退出后登录 B 账号，B 看不到 A 的画布、视频、图片与素材；A 重新登录后数据仍在。
+
+## 我的任务
+
+- 右上角头像菜单新增「我的任务」，菜单项与头像都带执行中任务数量角标；点开是右侧抽屉，列出执行中的生成任务（类型图标、提示词摘要、模型、进度条、已耗时、旋转图标与「执行中」状态）。
+- 数据源在 `web/src/stores/use-task-store.ts`：视频创作台走 `GET /api/v1/video-tasks`，生图与工作流走后端图片任务列表，画布内的任务扫本地画布项目的节点元数据（`videoTaskId` / `imageTaskId` / `audioTaskId` 且节点状态为 `loading`）。有任务时跟随 `VIDEO_POLL_INTERVAL_MS`（5 秒）刷新，空闲时降到 15 秒。
+- 点击任务回到来源页面并定位：视频 → `/video?task=<id>`，图片 → `/image?task=<id>`（复用页面已有的载入与高亮机制并滚动到位），画布任务 → `/canvas/<项目 id>?nodeId=<节点 id>`（复用 `focusNode` 平滑聚焦）。为此 `/video`、`/image`、`/canvas/[id]` 改为 `Suspense` + `useSearchParams` 读取参数。
+- 管理员登录时改为调用新增的 `GET /api/admin/tasks`，列出全部用户的执行中任务并标注用户名。这类任务属于其他用户在各自浏览器里的项目，因此只展示不跳转。
+- 首页「我的画布 / 我的视频 / 我的图片」三行把执行中任务排在各自行首，用带脉冲底纹、旋转图标、进度条和「执行中」标签的卡片展示。
+- 验证点：创建视频生成任务后切到其他路由，头像出现角标；点「我的任务」能看到该任务与进度；点击后回到 `/video` 并高亮定位该条记录；首页对应行首出现执行中卡片且动画在动；画布内发起的任务归到「我的画布」行，点击回到画布并聚焦到对应节点；管理员账号能看到其他用户的任务与用户名。
+
+## 对象下载鉴权与历史地址回填
+
+- `GET /api/files/:id/content` 现在要求签名参数 `?s=<HMAC>`（实现见 `service/storage.go`，密钥取自 `JWT_SECRET`）；`GET /api/files/:id` 挂到 `middleware.UserAuth` 并校验对象归属（`created_by` 为本人或管理员，`anonymous` 与空值视为无归属）。此前只要知道对象 UUID 就能下载任意用户的图片/视频/音频。
+- 上传与直传登记接口返回的地址、以及 `GET /api/files/:id` 新增的 `contentUrl` 字段都是签名地址；前端 `resolveMediaUrl` / `resolveImageUrl` 优先使用 `contentUrl`，并且不再对 `/api/files/` 开头的旧地址直接短路返回。
+- 一次性回填脚本 `scripts/backfill-storage-urls`：默认只统计，加 `-apply` 才写库，`-verify` 只读扫描全部表并列出仍含未签名地址的表与字段。本机数据库已执行，`-verify` 结果为 0。
+- 验证点：画布里的历史图片、视频、音频仍能显示与播放；两个工作台的历史缩略图正常；不带 `s` 参数直接访问 `/api/files/<id>/content` 会失败；用其他账号的 token 调 `/api/files/<id>` 返回无权访问。
+
+## 自动化功能测试（admin + guoguogis）
+
+- 测试脚本放在 `scripts/e2e/`：`api_tests.py`（接口层）与 `ui_tests.py`（Playwright + Chrome 浏览器层），夹具工具为 `scripts/e2e/testctl`（`seed` / `clean` / `stats`）。账号密码通过 `IC_E2E_ADMIN_PASS`、`IC_E2E_USER_PASS` 环境变量传入，不写进仓库；用户 id 由登录接口返回，不硬编码。
+- 接口层覆盖：未登录访问用户侧接口一律 401；画布项目、视频/图片生成记录、视频任务、图片任务按账号隔离；跨账号写入与跨账号删除互不影响；`/api/admin/*` 对普通用户 401、对管理员可用；对象下载缺签名/错签名被拒、正确签名可下载、他人读取被拒、归属者可读；`/api/admin/tasks` 返回全部用户任务且可按 `userId` 过滤并标注用户名。结果 63 项全部通过。
+- 浏览器层覆盖：未登录访问 `/canvas` 跳转登录页并带回 `redirect`；登录后浏览器 IndexedDB 中业务数据落在 `u_<用户id>__*` 命名空间，且不存在另一个账号的命名空间；首页只显示自己的画布、看不到对方画布；头像角标与「我的任务」抽屉数量、内容正确；点击执行中任务跳转到 `/video?task=<id>` 并高亮定位该记录；`/canvas/<项目id>?nodeId=<节点id>` 能渲染并定位目标节点；同一浏览器 profile 切换账号后两个命名空间互不重叠且各自数据仍在；管理员抽屉能看到其他账号的任务。结果 39 项全部通过。
+- 本地存储命名空间在首次渲染前会有一个 `guest__app_state`，以及 localforage 自身的 `local-forage-detect-blob-support` 探测库，两者都不承载业务数据。
+- 运行时观察（非本次引入）：顶栏「音乐创作台」指向 `/music`，但项目没有该路由，页面会请求到一个 404 的 RSC 预取；现已把该导航项从 `web/src/constant/navigation-tools.ts` 移除，桌面导航与移动端抽屉同时不再显示（路由本身仍未实现，后续补页面时再加回导航项）。
+
+

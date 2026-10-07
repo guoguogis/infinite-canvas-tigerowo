@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
+	"github.com/tigerowo/infinite-canvas/config"
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/repository"
 	"gorm.io/gorm"
@@ -143,8 +144,44 @@ func PublicStorageConfig() (model.PublicStorageConfig, error) {
 }
 
 // StorageObjectInfo 获取存储对象元数据。
-func StorageObjectInfo(id string) (model.StorageObject, error) {
-	return repository.GetStorageObject(id)
+func StorageObjectInfo(ctx context.Context, id string) (model.StorageObject, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok || user.ID == "" {
+		return model.StorageObject{}, safeMessageError{message: "请先登录"}
+	}
+	object, err := repository.GetStorageObject(id)
+	if err != nil {
+		return model.StorageObject{}, err
+	}
+	if !canAccessStorageObject(user, object) {
+		return model.StorageObject{}, safeMessageError{message: "无权访问该文件"}
+	}
+	object.ContentURL = StorageObjectContentURL(object.ID)
+	return object, nil
+}
+
+// VerifyStorageObjectSignature 校验对象下载签名。
+func VerifyStorageObjectSignature(id string, signature string) bool {
+	return hmac.Equal([]byte(storageObjectSignature(id)), []byte(strings.TrimSpace(signature)))
+}
+
+// StorageObjectContentURL 生成带签名的对象下载地址，签名不校验登录态，供 img/video 直链使用。
+func StorageObjectContentURL(id string) string {
+	return "/api/files/" + id + "/content?s=" + storageObjectSignature(id)
+}
+
+func storageObjectSignature(id string) string {
+	mac := hmac.New(sha256.New, []byte(config.Cfg.JWTSecret))
+	mac.Write([]byte("storage-object:" + id))
+	return hex.EncodeToString(mac.Sum(nil))[:32]
+}
+
+func canAccessStorageObject(user model.AuthUser, object model.StorageObject) bool {
+	if user.Role == model.UserRoleAdmin {
+		return true
+	}
+	owner := strings.TrimSpace(object.CreatedBy)
+	return owner == "" || owner == "anonymous" || owner == user.ID
 }
 
 // SaveCurrentUserStorageProvider 保存用户配置的存储提供商。
@@ -242,7 +279,7 @@ func UploadStorageObjectWithProvider(ctx context.Context, filename string, conte
 	if _, err := repository.SaveStorageObject(object); err != nil {
 		return UploadedStorageObject{}, err
 	}
-	url := "/api/files/" + objectID + "/content"
+	url := StorageObjectContentURL(objectID)
 	if publicURL != "" {
 		url = publicURL
 	}
@@ -291,7 +328,7 @@ func RegisterDirectStorageObject(ctx context.Context, input DirectStorageObjectI
 		return UploadedStorageObject{}, err
 	}
 	return UploadedStorageObject{
-		ID: objectID, URL: "/api/files/" + objectID + "/content?direct=1", StorageKey: "server:" + objectID,
+		ID: objectID, URL: StorageObjectContentURL(objectID) + "&direct=1", StorageKey: "server:" + objectID,
 		Bytes: input.Bytes, MimeType: contentType,
 	}, nil
 }
@@ -475,7 +512,10 @@ func RefreshStorageCapacityScheduler() {
 }
 
 // DownloadStorageObject 下载存储对象内容。
-func DownloadStorageObject(id string, rangeHeader string) (DownloadedStorageObject, error) {
+func DownloadStorageObject(id string, signature string, rangeHeader string) (DownloadedStorageObject, error) {
+	if !VerifyStorageObjectSignature(id, signature) {
+		return DownloadedStorageObject{}, safeMessageError{message: "文件下载链接无效"}
+	}
 	object, err := repository.GetStorageObject(id)
 	if err != nil {
 		return DownloadedStorageObject{}, err

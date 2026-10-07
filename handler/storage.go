@@ -130,7 +130,7 @@ func DeleteDirectFileRecord(w http.ResponseWriter, r *http.Request, id string) {
 
 // FileContent 获取文件内容。
 func FileContent(w http.ResponseWriter, r *http.Request, id string) {
-	download, err := service.DownloadStorageObject(id, r.Header.Get("Range"))
+	download, err := service.DownloadStorageObject(id, r.URL.Query().Get("s"), r.Header.Get("Range"))
 	if err != nil {
 		FailError(w, err)
 		return
@@ -155,7 +155,7 @@ func FileContent(w http.ResponseWriter, r *http.Request, id string) {
 
 // FileInfo 获取文件元数据。
 func FileInfo(w http.ResponseWriter, r *http.Request, id string) {
-	object, err := service.StorageObjectInfo(id)
+	object, err := service.StorageObjectInfo(r.Context(), id)
 	if err != nil {
 		FailError(w, err)
 		return

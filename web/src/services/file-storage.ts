@@ -1,8 +1,8 @@
 "use client";
 
-import localforage from "localforage";
 import { nanoid } from "nanoid";
 
+import { userLocalStore } from "@/lib/user-localforage";
 import { deleteAnonymousStorageFile, uploadAnonymousStorageFile } from "@/services/anonymous-storage";
 import { apiGet } from "@/services/api/request";
 import { autoSyncToCloud, canUseGlobalStorage, clearAutoSyncCache, getProxyUrl, loadUserStorageProvider, toProviderPayload, type StorageConfig, type UserWebDAVStorageProvider } from "@/services/image-storage";
@@ -10,7 +10,7 @@ import { useUserStore } from "@/stores/use-user-store";
 
 export type UploadedFile = { url: string; storageKey: string; bytes: number; mimeType: string; width?: number; height?: number; durationMs?: number };
 
-const store = localforage.createInstance({ name: "infinite-canvas", storeName: "media_files" });
+const store = userLocalStore("media_files");
 const objectUrls = new Map<string, string>();
 let storageConfigPromise: Promise<StorageConfig> | null = null;
 
@@ -137,7 +137,7 @@ export async function resolveMediaUrl(storageKey?: string, fallback = "") {
     }
     if (storageKey.startsWith("server:")) {
         const id = storageKey.slice("server:".length);
-        if (fallback && !fallback.startsWith("blob:") && !fallback.includes("direct=1") && !fallback.startsWith("/webdav-media/")) return fallback;
+        if (fallback && !fallback.startsWith("blob:") && !fallback.startsWith("/api/files/") && !fallback.includes("direct=1") && !fallback.startsWith("/webdav-media/")) return fallback;
         const { getStorageObjectInfo } = await import("@/services/api/storage");
         const info = await getStorageObjectInfo(id).catch(() => null);
         if (!info) return fallback;
@@ -150,7 +150,7 @@ export async function resolveMediaUrl(storageKey?: string, fallback = "") {
                 if (!useUserStore.getState().token || !direct.isWebDAVDirectUnavailable(error)) throw error;
             }
         }
-        const url = info.publicUrl || `/api/files/${encodeURIComponent(id)}/content`;
+        const url = info.publicUrl || info.contentUrl;
         return url;
     }
     return fallback;

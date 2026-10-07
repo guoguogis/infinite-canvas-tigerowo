@@ -25,9 +25,9 @@ import {
     Upload,
     WandSparkles,
 } from "lucide-react";
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, Suspense, type PointerEvent as ReactPointerEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { App, Button, Checkbox, Drawer, Empty, Image, Input, Modal, Segmented, Tag, Typography } from "antd";
-import localforage from "localforage";
 import { saveAs } from "file-saver";
 
 import { ImageSettingsPanel, imageFormatLabel, imageQualityLabel, imageSizeLabel, imageSizeOptions } from "@/components/image-settings-panel";
@@ -48,6 +48,7 @@ import { formatBytes, formatDuration, getDataUrlByteSize, readImageMeta } from "
 import { ImageRequestError, batchCanvasImageTaskStatus, createCanvasImageTask, deleteCanvasImageTask, listCanvasImageTasks, requestEdit, requestGeneration, type CanvasImageTask } from "@/services/api/image";
 import { comfyOutputStorageKey, getWorkflowTask, isRetryableWorkflowError, submitWorkflowTask } from "@/services/api/workflow-generation";
 import { parseWorkflowRef, type WorkflowRef } from "@/lib/workflow-channel";
+import { userLocalStore } from "@/lib/user-localforage";
 import { deleteImageGenerationLogs, fetchImageGenerationLogs, saveImageGenerationLogs } from "@/services/api/generation-logs";
 import { deleteStoredImages, imageToDataUrl, resolveImageUrl, uploadImage, uploadRemoteImageToServer } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
@@ -132,9 +133,19 @@ const WORKBENCH_LAYOUT_KEY = "infinite-canvas:image-workbench-layout";
 const RESULT_VIEW_MODE_KEY = "infinite-canvas:image-result-view-mode";
 const IMAGE_TASK_POLL_INTERVAL_MS = 10000;
 const WORKFLOW_BUTTON_POSITION_KEY = "infinite-canvas:workflow-button-position";
-const logStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_logs" });
-const categoryStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_categories" });
+const logStore = userLocalStore("image_generation_logs");
+const categoryStore = userLocalStore("image_generation_categories");
+
 export default function ImagePage() {
+    return (
+        <Suspense fallback={null}>
+            <ImagePageContent />
+        </Suspense>
+    );
+}
+
+function ImagePageContent() {
+    const searchParams = useSearchParams();
     const { message, modal } = App.useApp();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const config = useConfigStore((state) => state.config);
@@ -1039,6 +1050,20 @@ export default function ImagePage() {
         message.success("提示词已复制");
     };
 
+    // 「我的任务」跳转过来时定位到对应记录（?task=<任务id 或日志 id>）。
+    const focusTaskId = searchParams.get("task") || "";
+    const focusedTaskRef = useRef("");
+    useEffect(() => {
+        if (!focusTaskId || focusedTaskRef.current === focusTaskId || !logs.length) return;
+        const log = logs.find((item) => item.id === focusTaskId || item.task?.id === focusTaskId);
+        if (!log) return;
+        focusedTaskRef.current = focusTaskId;
+        void previewGenerationLog(log);
+        window.requestAnimationFrame(() => {
+            document.querySelector(`[data-log-id="${CSS.escape(log.id)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+        });
+    }, [focusTaskId, logs]);
+
     const buildRequestSnapshot = ({ promptText = prompt, referenceItems = references, taskCount = generationCount, configOverride, workflowRef = config.imageWorkflowRef }: { promptText?: string; referenceItems?: ReferenceImage[]; taskCount?: number; configOverride?: Partial<GenerationLogConfig>; workflowRef?: WorkflowRef | null } = {}) => {
         const text = promptText.trim();
         if (!text && !workflowRef) {
@@ -1798,7 +1823,7 @@ function ResultsPanel({
                         ) : result.status === "failed" ? (
                             <FailedImageCard key={result.id} result={result} error={result.error || "生成失败"} onCopyPrompt={onCopyPrompt} onRetry={() => onRetry(result)} />
                         ) : (
-                            <PendingImageCard key={result.id} result={result} now={now} onCopyPrompt={onCopyPrompt} />
+                            <PendingImageCard key={result.id} result={result} now={now} active={Boolean(activeLogId) && (activeLogId === result.taskLogId || activeLogId === result.id)} onCopyPrompt={onCopyPrompt} />
                         ),
                     )}
                     {resultViewMode === "category" ? (
@@ -1998,9 +2023,9 @@ function ResultImageCard({
     );
 }
 
-function PendingImageCard({ result, now, onCopyPrompt }: { result: GenerationResult; now: number; onCopyPrompt: (text: string) => void | Promise<void> }) {
+function PendingImageCard({ result, now, active, onCopyPrompt }: { result: GenerationResult; now: number; active?: boolean; onCopyPrompt: (text: string) => void | Promise<void> }) {
     return (
-        <div className="overflow-hidden rounded-lg border border-dashed border-stone-300 bg-stone-50 dark:border-stone-700 dark:bg-stone-900">
+        <div data-log-id={result.taskLogId || result.id} className={`overflow-hidden rounded-lg border border-dashed bg-stone-50 dark:bg-stone-900 ${active ? "border-stone-900 dark:border-stone-100" : "border-stone-300 dark:border-stone-700"}`}>
             <div className="relative aspect-[4/3]">
                 <div
                     className="absolute inset-0 opacity-60"
@@ -2153,7 +2178,7 @@ function HistoryLogCard({
     }, [categoryOpen]);
 
     return (
-        <div className={`overflow-hidden rounded-lg border bg-background dark:bg-stone-950 ${active ? "border-stone-900 dark:border-stone-100" : "border-stone-200 dark:border-stone-800"}`}>
+        <div data-log-id={log.id} className={`overflow-hidden rounded-lg border bg-background dark:bg-stone-950 ${active ? "border-stone-900 dark:border-stone-100" : "border-stone-200 dark:border-stone-800"}`}>
             <div className="relative aspect-[4/3] bg-stone-100 dark:bg-stone-900">
                 <div className="absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md bg-white/85 px-1.5 py-1 shadow-sm dark:bg-stone-950/80">
                     <Checkbox checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} />

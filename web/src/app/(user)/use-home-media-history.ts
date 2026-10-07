@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import localforage from "localforage";
 
 import { fetchImageGenerationLogs, fetchVideoGenerationLogs } from "@/services/api/generation-logs";
 import { resolveMediaUrl } from "@/services/file-storage";
 import { resolveImageUrl } from "@/services/image-storage";
 import { useUserStore } from "@/stores/use-user-store";
+import { userLocalStore } from "@/lib/user-localforage";
 
 export type HomeMediaHistoryItem = {
     id: string;
@@ -38,8 +38,8 @@ type StoredVideoLog = {
 };
 
 // 与生图 / 视频工作台共用同一份历史记录，实例名与 storeName 必须和两个页面保持一致。
-const imageLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_logs" });
-const videoLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "video_generation_logs" });
+const imageLogStore = userLocalStore("image_generation_logs");
+const videoLogStore = userLocalStore("video_generation_logs");
 
 export function useHomeMediaHistory(limit: number) {
     const token = useUserStore((state) => state.token);

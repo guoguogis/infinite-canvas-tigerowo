@@ -54,6 +54,8 @@
 - 全局 CSS 只放基础变量、全局重置、跨页面通用样式和少量第三方组件必要覆盖；不要在 `globals.css` 堆页面私有样式。
 - 代码尽量短小直接，少拆不必要组件，少做多层 props 传递，避免为了抽象堆出更多代码。
 - 前端业务数据需要浏览器本地持久化时，默认使用 `localforage`；`localStorage` 只用于极小的简单配置，不要用来保存业务列表、生成记录、图片、base64 或大 JSON。
+- 浏览器本地数据必须按登录账号隔离：新增 localforage 存储时不要直接 `localforage.createInstance(...)`，改用 `web/src/lib/user-localforage.ts` 的 `userLocalStore(storeName)`，它会按当前账号切到独立命名空间。新增使用 `localForageStorage` 的持久化 store 时，要在 `useUserLocalStorageScope()` 里补上重新水合，否则同一浏览器换号登录会看到上一个账号的数据。
+- 用户侧接口默认只返回当前账号的数据；需要管理员看全量时走 `/api/admin/*` 接口，不要放宽用户侧接口的过滤条件。
 
 ## 画布 UI 规范
 

@@ -425,3 +425,23 @@ export type StorageCapacityResult = {
 export async function measureAdminStorageProvider(token: string, payload: { index: number; provider: AdminStorageProvider }) {
     return apiPost<StorageCapacityResult>("/api/admin/storage/measure", payload, token);
 }
+
+export type AdminRunningTask = {
+    id: string;
+    kind: "video" | "image" | "audio";
+    userId: string;
+    userName: string;
+    model: string;
+    status: string;
+    progress: number;
+    prompt: string;
+    source: string;
+    sourceId: string;
+    nodeId: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export async function fetchAdminRunningTasks(token: string, userId = "") {
+    return apiGet<AdminRunningTask[]>("/api/admin/tasks", compactApiParams({ userId }), token);
+}

@@ -16,4 +16,7 @@ type StorageObject struct {
 	CreatedBy  string `json:"createdBy" gorm:"index"`
 	CreatedAt  string `json:"createdAt"`
 	DeletedAt  string `json:"deletedAt"`
+
+	// ContentURL 带签名的下载地址，仅接口返回时填充，不落库。
+	ContentURL string `json:"contentUrl" gorm:"-"`
 }

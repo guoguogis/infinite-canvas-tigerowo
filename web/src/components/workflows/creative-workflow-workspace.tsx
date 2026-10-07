@@ -2,7 +2,6 @@
 
 import { App, Button, Checkbox, Empty, Image, Input, Modal, Select, Space, Switch, Tag, Typography } from "antd";
 import { AlertCircle, ArrowDown, ArrowUp, Bot, CheckCircle2, Copy, Download, Edit3, FilePlus2, Globe2, Layers3, LoaderCircle, LockKeyhole, Play, Plus, Sparkles, Trash2, WandSparkles } from "lucide-react";
-import localforage from "localforage";
 import { nanoid } from "nanoid";
 import { saveAs } from "file-saver";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -12,6 +11,7 @@ import { ModelPicker } from "@/components/model-picker";
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
 import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
 import { formatBytes, formatDuration, getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
+import { userLocalStore } from "@/lib/user-localforage";
 import { createCanvasImageTask, requestEdit, requestGeneration, requestImageQuestion, type CanvasImageTask } from "@/services/api/image";
 import { saveImageGenerationLogs } from "@/services/api/generation-logs";
 import { deleteUserWorkflow, draftUserWorkflow, fetchUserConfig, fetchUserWorkflows, saveUserWorkflow, type CreativeWorkflowRecord } from "@/services/api/user-config";
@@ -184,9 +184,9 @@ type GenerationCategory = { id: string; name: string; createdAt: number };
 const WORKFLOW_STORE_KEY = "infinite-canvas:creative-workflows";
 const SERIES_DRAFT_STORE_PREFIX = "infinite-canvas:series-drafts:";
 const CATEGORY_STORE_KEY = "infinite-canvas:image_generation_categories";
-const workflowStore = localforage.createInstance({ name: "infinite-canvas", storeName: "creative_workflows" });
-const imageLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_logs" });
-const categoryStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_categories" });
+const workflowStore = userLocalStore("creative_workflows");
+const imageLogStore = userLocalStore("image_generation_logs");
+const categoryStore = userLocalStore("image_generation_categories");
 
 const variableTypeOptions: Array<{ value: WorkflowVariableType; label: string }> = [
     { value: "text", label: "短文本" },

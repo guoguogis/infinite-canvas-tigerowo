@@ -1,9 +1,9 @@
 "use client";
 
-import localforage from "localforage";
-
 import { nanoid } from "nanoid";
+
 import { readImageMeta } from "@/lib/image-utils";
+import { userLocalStore } from "@/lib/user-localforage";
 import { deleteAnonymousStorageFile, uploadAnonymousStorageFile } from "@/services/anonymous-storage";
 import { apiGet } from "@/services/api/request";
 import { useUserStore } from "@/stores/use-user-store";
@@ -54,7 +54,7 @@ export type StorageConfig = {
     autoSyncAllAssets: boolean;
 };
 
-const store = localforage.createInstance({ name: "infinite-canvas", storeName: "image_files" });
+const store = userLocalStore("image_files");
 const objectUrls = new Map<string, string>();
 const serverUrls = new Map<string, string>();
 export const USER_STORAGE_PROVIDER_KEY = "infinite-canvas:user_storage_provider";
@@ -247,7 +247,7 @@ export async function resolveImageUrl(storageKey?: string, fallback = "") {
     }
     if (storageKey.startsWith("server:")) {
         const id = storageKey.slice("server:".length);
-        if (fallback && !fallback.startsWith("blob:") && !fallback.includes("direct=1")) return fallback;
+        if (fallback && !fallback.startsWith("blob:") && !fallback.startsWith("/api/files/") && !fallback.includes("direct=1")) return fallback;
         const localUrl = await resolveLocalImageUrl(storageKey).catch(() => "");
         if (localUrl) return localUrl;
         const cachedUrl = serverUrls.get(id);
@@ -265,7 +265,7 @@ export async function resolveImageUrl(storageKey?: string, fallback = "") {
                 if (!useUserStore.getState().token || !direct.isWebDAVDirectUnavailable(error)) throw error;
             }
         }
-        const url = info.publicUrl || `/api/files/${encodeURIComponent(id)}/content`;
+        const url = info.publicUrl || info.contentUrl;
         serverUrls.set(id, url);
         return url;
     }
@@ -361,7 +361,6 @@ export async function setImageBlob(storageKey: string, blob: Blob) {
 
 export async function imageToDataUrl(image: { url?: string; dataUrl?: string; storageKey?: string }) {
     const serverObjectId = image.storageKey?.startsWith("server:") ? image.storageKey.slice("server:".length) : "";
-    const directGuestObject = image.storageKey?.startsWith("server:webdav:");
     const hasPersistedUrl = [image.dataUrl, image.url].some((url) => Boolean(url && !url.startsWith("blob:")));
     const localUrl = !useUserStore.getState().token && serverObjectId && image.storageKey && !hasPersistedUrl
         ? await resolveLocalImageUrl(image.storageKey).catch(() => "")
@@ -374,7 +373,6 @@ export async function imageToDataUrl(image: { url?: string; dataUrl?: string; st
         image.url && !image.url.startsWith("blob:") ? image.url : "",
         localUrl,
         resolvedUrl,
-        serverObjectId && !directGuestObject ? `/api/files/${encodeURIComponent(serverObjectId)}/content` : "",
     ].filter((url, index, list): url is string => Boolean(url) && list.indexOf(url) === index);
     if (!urls.length) return "";
     let lastError = "";

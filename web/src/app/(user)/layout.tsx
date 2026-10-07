@@ -4,6 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { AppTopNav } from "@/components/layout/app-top-nav";
+import { useUserLocalStorageScope } from "@/hooks/use-user-local-storage-scope";
 import { fetchUserConfig } from "@/services/api/user-config";
 import { useUserStore } from "@/stores/use-user-store";
 
@@ -16,6 +17,7 @@ export default function UserLayout({ children }: { children: ReactNode }) {
     const user = useUserStore((state) => state.user);
     const isReady = useUserStore((state) => state.isReady);
     const wasLoggedOutRef = useRef(false);
+    useUserLocalStorageScope();
     const isPublicPage = publicPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
     const needsAuth = !isPublicPage;
     // 登录/注册入口只展示主窗口，不显示顶部菜单栏。
