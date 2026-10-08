@@ -94,12 +94,40 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 旧数据不迁移：改动前的全局命名空间数据不再被读取；画布项目会由账号同步补回，纯本地且未同步到账号的媒体不会恢复。
 - 验证点：同一浏览器登录 A 账号建画布、生成视频，退出后登录 B 账号，B 看不到 A 的画布、视频、图片与素材；A 重新登录后数据仍在。
 
+## 画布详情页显示顶部菜单
+
+- `AppTopNav` 原来用 `hideHeader = /^\/canvas\/[^/]+/.test(pathname)` 在画布详情页隐藏整条顶部菜单，现在去掉了这个判断，画布详情页与其它页面一样显示顶部菜单（控制台入口、导航、头像与任务入口）。
+- 画布自身的悬浮工具栏保持不变：它承载着顶部菜单没有的内容（算力点余额、快捷键入口、Agent 展开按钮），因此没有一并移除，但配置/主题/头像等入口与顶部菜单存在重复。
+- 验证点：进入 `/canvas/<id>` 后顶部出现控制台菜单与头像；画布本体正常渲染、画布菜单按钮与算力点余额仍在；画布区域高度自适应，不再被顶栏挤出屏幕。
+
+## 隐藏没有提示词的分类
+
+- `model.PromptCategory` 新增 `promptCount`（`gorm:"-"`，仅接口返回时填充），由新的 `repository.CountPromptsByCategory()` 按 `category` 聚合统计；`service.ListAllPromptCategories()` 统一补上计数。
+- 提示词查询页面的分类列表（`service.ListPrompts` 返回的 `categories`，同时供视频/生图/画布里的提示词选择弹窗使用）现在会跳过 `promptCount == 0` 的分类。
+- 管理页表格的「分类」筛选下拉同样只列出有提示词的分类。**「新增/编辑提示词」的分类选择与「同步」弹窗的远程分类列表仍保留全部分类**，否则会出现空分类无法补词、失败后无法手动补同步的问题。
+- 验证点：管理页分类筛选下拉里不再出现「系统」；提示词查询页面的分类筛选从 14 项变为 13 项；新增/编辑弹窗与同步弹窗仍能看到全部分类。
+
+## 提示词来源新增「清单聚合」类型与 YouMind 图像提示词
+
+- 新增来源类型 `manifest`（`model.PromptSourceKindManifest`）：先从 URL 拉取清单 JSON，再按清单里的 `categories[].file` 逐个拉取分类文件并合并成一个来源，分类标题作为标签保留（提示词库支持按标签筛选）。实现见 `service/prompt_source.go` 的 `manifestPromptSourceItems`。
+- 新增内置来源 `youmind-ai-image-prompts`（YouMind AI Image Prompts，仓库 `YouMind-OpenLab/ai-image-prompts-skill`）：清单里 11 个分类，实际同步 **22,908 条**（清单自报的 `totalPrompts: 15755` 与各分类 `count` 之和不一致，以分类文件为准），管理页「地址」列标注「清单聚合」，分类标题落成 11 个标签。
+- 为兼容该仓库的数据格式：`promptSourceItem` 的 `id` 改为同时接受字符串与数字，新增 `sourceMedia` 作为封面回退字段；清单来源的提示词 ID 会带上分类前缀，避免不同分类文件之间 ID 冲突。
+- 修复：提示词来源的「启用来源」开关对内置来源无效。管理页的开关与文案都表明可以切换，但 `SavePromptSource` 里的 `!source.BuiltIn` 判断把内置来源的开关静默忽略了。现在允许切换，内置来源仍不可改地址、不可删除。
+- 修复：来源同步失败时不会记录原因，管理页永远显示「未同步」而不是「同步失败」；现在失败会把错误写进 `lastError`。
+- 修复：`ReplacePromptSourcePrompts` 原来一次性 `Create` 全部条目，上万条会超出 SQLite 的单语句参数上限。改为按 500 行切块、每块一条独立 INSERT。
+- 修复（重要）：来源同步在本项目的 SQLite 配置下**不能使用 GORM 的 `CreateInBatches`**。它会把所有批次放进同一个显式事务，实测在事务内执行第二条语句就会返回 `unable to open database file (14)`（服务端稳定复现：单批 200 行成功、500 行失败；改成单条语句后 2,131 行也能成功）。因此改为「按行数切块 + 每块一条独立语句」，不再使用 `CreateInBatches`。
+- 调整：SQLite 连接池限制为单连接（`SetMaxOpenConns(1)`）。SQLite 同一时刻只允许一个写者，来源同步与后台轮询器、定时任务会并发写入。
+- 拉取来源内容的 HTTP 客户端：总超时从 60 秒放宽到 20 分钟，TLS 握手超时从默认 10 秒放宽到 60 秒，响应头超时 120 秒，并对单次拉取自动重试 3 次（间隔 2 秒、4 秒）。该仓库 11 个分类合计约 47 MB，默认超时必然失败。
+- 说明：`YouMind-OpenLab/awesome-gpt-image-2` 与 `YouMind-OpenLab/awesome-nano-banana-pro-prompts` 这两个仓库**不需要新增来源**——它们已经由「分类同步」路径（`buildPromptCategory` 直接解析仓库 `README_zh.md`，每天定时任务抓取）覆盖，对应分类 `youmind-gpt-image-2` 与 `youmind-nano-banana-pro`。对应的来源预设保持默认禁用，避免重复导入。
+- 说明：`YouMind-OpenLab/ai-image-prompts-skill` 与 `YouMind-OpenLab/nano-banana-pro-prompts-recommend-skill` 的 11 个分类文件字节完全相同（manifest 只差 `updatedAt`），属于同一份数据，本次只接入前者。
+- 验证点：管理页「提示词来源」出现 YouMind AI Image Prompts 且标注「清单聚合」、显示 22908 条与「已同步」；提示词库总数从 5757 变为 28665，按标签能筛出 11 个子分类；内置来源的启用开关切换后可以保存并生效。
+
 ## 我的任务
 
-- 右上角头像菜单新增「我的任务」，菜单项与头像都带执行中任务数量角标；点开是右侧抽屉，列出执行中的生成任务（类型图标、提示词摘要、模型、进度条、已耗时、旋转图标与「执行中」状态）。
+- 右上角头像**前面**新增「我的任务」图标入口（带执行中任务数量角标），头像本身不再挂角标，头像菜单里也去掉了该项；点开是右侧抽屉，列出执行中的生成任务（类型图标、提示词摘要、模型、进度条、已耗时、旋转图标与「执行中」状态）。没有执行中的任务时不显示该图标。
 - 数据源在 `web/src/stores/use-task-store.ts`：视频创作台走 `GET /api/v1/video-tasks`，生图与工作流走后端图片任务列表，画布内的任务扫本地画布项目的节点元数据（`videoTaskId` / `imageTaskId` / `audioTaskId` 且节点状态为 `loading`）。有任务时跟随 `VIDEO_POLL_INTERVAL_MS`（5 秒）刷新，空闲时降到 15 秒。
 - 点击任务回到来源页面并定位：视频 → `/video?task=<id>`，图片 → `/image?task=<id>`（复用页面已有的载入与高亮机制并滚动到位），画布任务 → `/canvas/<项目 id>?nodeId=<节点 id>`（复用 `focusNode` 平滑聚焦）。为此 `/video`、`/image`、`/canvas/[id]` 改为 `Suspense` + `useSearchParams` 读取参数。
-- 管理员登录时改为调用新增的 `GET /api/admin/tasks`，列出全部用户的执行中任务并标注用户名。这类任务属于其他用户在各自浏览器里的项目，因此只展示不跳转。
+- 管理员登录时改为调用新增的 `GET /api/admin/tasks`，列出全部用户的执行中任务并标注用户名。其中**属于管理员自己**的任务与普通用户一样可点击跳转（`/video?task=`、`/image?task=`）；其他用户的任务属于各自浏览器里的项目，只展示不跳转。
 - 首页「我的画布 / 我的视频 / 我的图片」三行把执行中任务排在各自行首，用带脉冲底纹、旋转图标、进度条和「执行中」标签的卡片展示。
 - 验证点：创建视频生成任务后切到其他路由，头像出现角标；点「我的任务」能看到该任务与进度；点击后回到 `/video` 并高亮定位该条记录；首页对应行首出现执行中卡片且动画在动；画布内发起的任务归到「我的画布」行，点击回到画布并聚焦到对应节点；管理员账号能看到其他用户的任务与用户名。
 
@@ -110,9 +138,16 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 一次性回填脚本 `scripts/backfill-storage-urls`：默认只统计，加 `-apply` 才写库，`-verify` 只读扫描全部表并列出仍含未签名地址的表与字段。本机数据库已执行，`-verify` 结果为 0。
 - 验证点：画布里的历史图片、视频、音频仍能显示与播放；两个工作台的历史缩略图正常；不带 `s` 参数直接访问 `/api/files/<id>/content` 会失败；用其他账号的 token 调 `/api/files/<id>` 返回无权访问。
 
+## 提示词详情预览视频的播放停止
+
+- 现象：提示词管理（`/admin/prompts`）里点开带视频的提示词，关闭弹框后视频仍在播放。
+- 原因：antd `Modal` 默认不销毁内容，关闭只是把 `.ant-modal-wrap` 置为 `display: none`；弹框里的 `<video autoPlay loop>` 仍挂在 DOM 上且 `src` 未清空，是否停止播放完全交给浏览器对隐藏元素的处理。此外切换提示词时 `videoFailed` 状态不会重置，一条视频加载失败后后续视频都会退化成封面。
+- 改动：详情弹框加 `destroyOnHidden`，关闭时真正卸载内容；`PromptPreview`（`web/src/components/prompts/prompt-cover.tsx`）用 ref 在卸载或切换视频时显式 `pause()` 并清空 `src` 后 `load()`，不再依赖浏览器行为。
+- 验证：`scripts/e2e/prompt_video_tests.py` 覆盖底部「关闭」按钮、右上角 X、ESC 三种关闭方式，断言关闭前视频处于播放状态、关闭后页面已无 `<video>` 元素且原播放器已暂停。修复前 15/18 通过（关闭后 `<video>` 仍留在 DOM 中），修复后 18/18 通过。
+
 ## 自动化功能测试（admin + guoguogis）
 
-- 测试脚本放在 `scripts/e2e/`：`api_tests.py`（接口层）与 `ui_tests.py`（Playwright + Chrome 浏览器层），夹具工具为 `scripts/e2e/testctl`（`seed` / `clean` / `stats`）。账号密码通过 `IC_E2E_ADMIN_PASS`、`IC_E2E_USER_PASS` 环境变量传入，不写进仓库；用户 id 由登录接口返回，不硬编码。
+- 测试脚本放在 `scripts/e2e/`：`api_tests.py`（接口层）、`ui_tests.py`（Playwright + Chrome 浏览器层）、`prompt_video_tests.py`（提示词视频预览回归），夹具工具为 `scripts/e2e/testctl`（`seed` / `clean` / `stats`）。账号密码通过 `IC_E2E_ADMIN_PASS`、`IC_E2E_USER_PASS` 环境变量传入，不写进仓库；用户 id 由登录接口返回，不硬编码。
 - 接口层覆盖：未登录访问用户侧接口一律 401；画布项目、视频/图片生成记录、视频任务、图片任务按账号隔离；跨账号写入与跨账号删除互不影响；`/api/admin/*` 对普通用户 401、对管理员可用；对象下载缺签名/错签名被拒、正确签名可下载、他人读取被拒、归属者可读；`/api/admin/tasks` 返回全部用户任务且可按 `userId` 过滤并标注用户名。结果 63 项全部通过。
 - 浏览器层覆盖：未登录访问 `/canvas` 跳转登录页并带回 `redirect`；登录后浏览器 IndexedDB 中业务数据落在 `u_<用户id>__*` 命名空间，且不存在另一个账号的命名空间；首页只显示自己的画布、看不到对方画布；头像角标与「我的任务」抽屉数量、内容正确；点击执行中任务跳转到 `/video?task=<id>` 并高亮定位该记录；`/canvas/<项目id>?nodeId=<节点id>` 能渲染并定位目标节点；同一浏览器 profile 切换账号后两个命名空间互不重叠且各自数据仍在；管理员抽屉能看到其他账号的任务。结果 39 项全部通过。
 - 本地存储命名空间在首次渲染前会有一个 `guest__app_state`，以及 localforage 自身的 `local-forage-detect-blob-support` 探测库，两者都不承载业务数据。

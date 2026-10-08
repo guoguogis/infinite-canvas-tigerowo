@@ -33,7 +33,7 @@ func ListAllPromptCategories() []model.PromptCategory {
 	items := ListPromptCategories()
 	sources, err := repository.ListPromptSources()
 	if err != nil {
-		return items
+		return withPromptCategoryCounts(items)
 	}
 	builtin := map[string]bool{}
 	merged := make([]model.PromptCategory, 0, len(sources)+len(items))
@@ -47,7 +47,19 @@ func ListAllPromptCategories() []model.PromptCategory {
 	sort.SliceStable(merged, func(i, j int) bool {
 		return builtin[merged[i].Category] && !builtin[merged[j].Category]
 	})
-	return append(merged, items...)
+	return withPromptCategoryCounts(append(merged, items...))
+}
+
+// withPromptCategoryCounts 给分类补上提示词条数，供前端隐藏空分类。
+func withPromptCategoryCounts(items []model.PromptCategory) []model.PromptCategory {
+	counts, err := repository.CountPromptsByCategory()
+	if err != nil {
+		return items
+	}
+	for index := range items {
+		items[index].PromptCount = counts[items[index].Category]
+	}
+	return items
 }
 
 func promptSourceCategory(source model.PromptSource) model.PromptCategory {
@@ -109,10 +121,11 @@ func DeletePrompts(ids []string) error {
 	return repository.DeletePrompts(ids)
 }
 
+// promptCategoryCodes 返回供前端筛选用的分类编码，没有提示词的分类不返回。
 func promptCategoryCodes(items []model.PromptCategory) []string {
 	codes := []string{}
 	for _, item := range items {
-		if item.Category != "" {
+		if item.Category != "" && item.PromptCount > 0 {
 			codes = append(codes, item.Category)
 		}
 	}

@@ -55,7 +55,8 @@ export default function AdminPromptsPage() {
     const [isSyncOpen, setIsSyncOpen] = useState(false);
     const defaultCategory = categories[0]?.category || "";
     const categoryName = (category: string) => categories.find((item) => item.category === category)?.name || category;
-    const categoryOptions = [{ label: "全部分类", value: "" }, ...categories.map((item) => ({ label: item.name, value: item.category }))];
+    // 筛选下拉只列出有提示词的分类；新增/编辑与同步列表仍用完整分类，避免空分类无法补词或手动补同步。
+    const categoryOptions = [{ label: "全部分类", value: "" }, ...categories.filter((item) => item.promptCount > 0).map((item) => ({ label: item.name, value: item.category }))];
     const tagOptions = tags.map((item) => ({ label: item, value: item }));
 
     useEffect(() => {
@@ -253,7 +254,7 @@ export default function AdminPromptsPage() {
                 </Form>
             </Modal>
 
-            <Modal title="提示词详情" open={Boolean(detailPrompt)} width={760} onCancel={() => setDetailPrompt(null)} footer={<Button onClick={() => setDetailPrompt(null)}>关闭</Button>}>
+            <Modal title="提示词详情" open={Boolean(detailPrompt)} width={760} onCancel={() => setDetailPrompt(null)} destroyOnHidden footer={<Button onClick={() => setDetailPrompt(null)}>关闭</Button>}>
                 {detailPrompt ? (
                     <Flex vertical gap={14}>
                         <Flex gap={14} align="start">

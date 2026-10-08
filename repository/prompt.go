@@ -15,6 +15,29 @@ func PromptCategories() []model.PromptCategory {
 	return result
 }
 
+// CountPromptsByCategory 返回每个分类下的提示词条数。
+func CountPromptsByCategory() (map[string]int, error) {
+	db, err := DB()
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		Category string
+		Total    int
+	}
+	if err := db.Model(&model.Prompt{}).
+		Select("category, count(*) as total").
+		Group("category").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	counts := make(map[string]int, len(rows))
+	for _, row := range rows {
+		counts[row.Category] = row.Total
+	}
+	return counts, nil
+}
+
 // PromptCategoryByCode 根据分类编码查找内置提示词分类。
 func PromptCategoryByCode(category string) (model.PromptCategory, bool) {
 	for _, item := range promptCategories {

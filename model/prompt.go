@@ -24,6 +24,8 @@ const (
 	PromptSourceKindRemote PromptSourceKind = "remote"
 	// PromptSourceKindBuiltin 使用程序内置的提示词数据。
 	PromptSourceKindBuiltin PromptSourceKind = "builtin"
+	// PromptSourceKindManifest 先从 URL 拉取清单，再按清单里的分类文件逐个拉取并合并。
+	PromptSourceKindManifest PromptSourceKind = "manifest"
 )
 
 // PromptSource 提示词来源，指向一个返回 JSON 数组的远程地址或程序内置数据。
@@ -59,4 +61,6 @@ type PromptCategory struct {
 	// SourceID 非空表示该分类来自提示词来源。
 	SourceID  string `json:"sourceId"`
 	UpdatedAt string `json:"updatedAt"`
+	// PromptCount 是该分类下的提示词条数，仅接口返回时填充。
+	PromptCount int `json:"promptCount" gorm:"-"`
 }

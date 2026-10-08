@@ -1,7 +1,7 @@
 "use client";
 
 import { Image as ImageIcon, Play } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // 按标题哈希出一个稳定色相，让同一条提示词的渐变封面每次都一致。
 function coverHue(title: string) {
@@ -44,8 +44,19 @@ export function PromptCover({ url, title, className, hasVideo = false }: { url: 
 // 详情里的预览：有视频就直接播放，否则退化为封面图。
 export function PromptPreview({ videoUrl, coverUrl, title, className }: { videoUrl: string; coverUrl: string; title: string; className: string }) {
     const [videoFailed, setVideoFailed] = useState(false);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+    // 卸载或切换视频时显式停掉播放：关闭弹框只是把内容隐藏，浏览器不保证停止已挂载的媒体。
+    useEffect(() => {
+        const video = videoRef.current;
+        return () => {
+            if (!video) return;
+            video.pause();
+            video.removeAttribute("src");
+            video.load();
+        };
+    }, [videoUrl, videoFailed]);
     if (videoUrl && !videoFailed) {
-        return <video src={videoUrl} poster={coverUrl || undefined} controls autoPlay loop muted playsInline preload="metadata" className={className} onError={() => setVideoFailed(true)} />;
+        return <video ref={videoRef} src={videoUrl} poster={coverUrl || undefined} controls autoPlay loop muted playsInline preload="metadata" className={className} onError={() => setVideoFailed(true)} />;
     }
     return <PromptCover url={coverUrl} title={title} className={className} />;
 }

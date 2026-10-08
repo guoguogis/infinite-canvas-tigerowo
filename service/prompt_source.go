@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +24,12 @@ const promptSourceRegistryBase = "https://raw.githubusercontent.com/yukkcat/imag
 
 // promptSourceRegistryHomepage 是注册表来源的主页。
 const promptSourceRegistryHomepage = "https://github.com/yukkcat/image-prompts"
+
+// YouMind skill 仓库：一个 manifest 索引 + 多个分类文件，11 个分类共 1.5 万条左右。
+const youmindAIImagePromptsID = "youmind-ai-image-prompts"
+const youmindAIImagePromptsName = "YouMind AI Image Prompts"
+const youmindAIImagePromptsHome = "https://github.com/YouMind-OpenLab/ai-image-prompts-skill"
+const youmindAIImagePromptsManifest = "https://raw.githubusercontent.com/YouMind-OpenLab/ai-image-prompts-skill/main/references/manifest.json"
 
 // defaultPromptSources 返回内置提示词来源。与项目已有分类重合的默认禁用，避免重复导入。
 func defaultPromptSources() []model.PromptSource {
@@ -40,11 +47,12 @@ func defaultPromptSources() []model.PromptSource {
 		{id: "freestylefly-gpt-image-2", name: "Freestylefly GPT Image 2", enabled: true},
 		{id: "awesome-gpt-image", name: "Awesome GPT Image", enabled: false},
 		{id: "awesome-gpt4o-image-prompts", name: "Awesome GPT-4o Image Prompts", enabled: false},
+		// 这两个仓库已由「分类同步」路径每天自动抓取，来源方式默认禁用避免重复导入。
 		{id: "youmind-gpt-image-2", name: "YouMind GPT Image 2", enabled: false},
 		{id: "youmind-nano-banana-pro", name: "YouMind Nano Banana Pro", enabled: false},
 		{id: "davidwu-gpt-image2-prompts", name: "DavidWu GPT Image 2", enabled: false},
 	}
-	items := make([]model.PromptSource, 0, len(presets))
+	items := make([]model.PromptSource, 0, len(presets)+1)
 	builtinHomes := map[string]string{
 		ATLAS_MINIMAX_H3_PROMPTS_ID: ATLAS_MINIMAX_H3_PROMPTS_HOME,
 		SEEDANCE_2_PROMPTS_ID:  SEEDANCE_2_PROMPTS_HOME,
@@ -66,6 +74,16 @@ func defaultPromptSources() []model.PromptSource {
 			BuiltIn:  true,
 		})
 	}
+	items = append(items, model.PromptSource{
+		ID:       youmindAIImagePromptsID,
+		Name:     youmindAIImagePromptsName,
+		URL:      youmindAIImagePromptsManifest,
+		Homepage: youmindAIImagePromptsHome,
+		Category: youmindAIImagePromptsID,
+		Kind:     model.PromptSourceKindManifest,
+		Enabled:  true,
+		BuiltIn:  true,
+	})
 	return items
 }
 
@@ -158,7 +176,7 @@ func SavePromptSource(input PromptSourceInput) ([]model.PromptSource, error) {
 	if source.Category == "" {
 		source.Category = source.ID
 	}
-	if input.Enabled != nil && !source.BuiltIn {
+	if input.Enabled != nil {
 		source.Enabled = *input.Enabled
 	}
 	if _, err := repository.SavePromptSource(source); err != nil {
@@ -195,6 +213,9 @@ func SyncPromptSource(id string) ([]model.PromptSource, error) {
 		return nil, errors.New("提示词来源不存在")
 	}
 	if err := syncPromptSource(source); err != nil {
+		// 把失败原因记在来源上，管理页才能显示「同步失败」。
+		source.LastError = err.Error()
+		_, _ = repository.SavePromptSource(source)
 		return nil, err
 	}
 	return ListPromptSources()
@@ -220,31 +241,103 @@ func SyncAllPromptSources() ([]model.PromptSource, map[string]string, error) {
 }
 
 func syncPromptSource(source model.PromptSource) error {
-	var items []model.Prompt
-	if source.Kind == model.PromptSourceKindBuiltin {
-		builtin, err := builtinPromptSourceItems(source)
-		if err != nil {
+	if source.Kind == model.PromptSourceKindManifest {
+		if err := syncManifestPromptSource(source); err != nil {
 			return err
 		}
-		items = builtin
 	} else {
-		raw, err := fetchPromptSourceText(source.URL)
+		items, err := promptSourceItems(source)
 		if err != nil {
 			return err
 		}
-		parsed, err := parsePromptSourceItems(raw, source, time.Now().Format(time.RFC3339))
-		if err != nil {
+		if err := repository.ReplacePromptSourcePrompts(source.ID, items); err != nil {
 			return err
 		}
-		items = parsed
-	}
-	if err := repository.ReplacePromptSourcePrompts(source.ID, items); err != nil {
-		return err
 	}
 	source.LastSyncAt = time.Now().Format(time.RFC3339)
 	source.LastError = ""
 	_, err := repository.SavePromptSource(source)
 	return err
+}
+
+// promptSourceItems 取出来源的全部提示词（内置数据或单个远程 JSON）。
+func promptSourceItems(source model.PromptSource) ([]model.Prompt, error) {
+	if source.Kind == model.PromptSourceKindBuiltin {
+		return builtinPromptSourceItems(source)
+	}
+	raw, err := fetchPromptSourceText(source.URL)
+	if err != nil {
+		return nil, err
+	}
+	return parsePromptSourceItems(raw, source, time.Now().Format(time.RFC3339))
+}
+
+// promptSourceManifest 是清单型来源的索引结构。
+type promptSourceManifest struct {
+	Categories []struct {
+		Slug  string `json:"slug"`
+		Title string `json:"title"`
+		File  string `json:"file"`
+	} `json:"categories"`
+}
+
+// syncManifestPromptSource 按清单逐个分类拉取并写入，接口仍是「替换整个来源」。
+// 逐分类写入可以避免把上万条全部堆在内存里，也把单次数据库写入量控制住。
+func syncManifestPromptSource(source model.PromptSource) error {
+	raw, err := fetchPromptSourceText(source.URL)
+	if err != nil {
+		return err
+	}
+	var manifest promptSourceManifest
+	if err := json.Unmarshal([]byte(raw), &manifest); err != nil {
+		return errors.New("来源清单 JSON 格式不正确")
+	}
+	if len(manifest.Categories) == 0 {
+		return errors.New("来源清单没有分类")
+	}
+	if err := repository.DeletePromptSourcePrompts(source.ID); err != nil {
+		return err
+	}
+	now := time.Now().Format(time.RFC3339)
+	total := 0
+	for _, category := range manifest.Categories {
+		file := strings.TrimSpace(category.File)
+		if file == "" {
+			continue
+		}
+		rawCategory, err := fetchPromptSourceText(resolvePromptSourceURL(source.URL, file))
+		if err != nil {
+			return fmt.Errorf("已写入 %d 条；拉取 %s 失败：%w", total, file, err)
+		}
+		slug := slugPromptSourceID(firstNonEmptyString(category.Slug, category.Title))
+		parsed, err := parsePromptSourceItemsIn(rawCategory, source, slug+"-", func(int) string { return now })
+		if err != nil {
+			return fmt.Errorf("已写入 %d 条；解析 %s 失败：%w", total, file, err)
+		}
+		for index := range parsed {
+			parsed[index].Tags = appendPromptSourceTag(parsed[index].Tags, strings.TrimSpace(category.Title))
+		}
+		if err := repository.AppendPromptSourcePrompts(source.ID, parsed); err != nil {
+			return fmt.Errorf("已写入 %d 条；写入 %s 失败：%w", total, file, err)
+		}
+		total += len(parsed)
+	}
+	if total == 0 {
+		return errors.New("来源没有解析到有效提示词")
+	}
+	return nil
+}
+
+func appendPromptSourceTag(tags []string, tag string) []string {
+	if tag == "" {
+		return tags
+	}
+	for _, item := range tags {
+		if item == tag {
+			return tags
+		}
+	}
+	return append(tags, tag)
 }
 
 // builtinPromptSourceItems 取用程序内置的提示词数据。
@@ -288,13 +381,48 @@ func decompressPromptSourceData(encoded string) (string, error) {
 	return string(raw), nil
 }
 
+// promptSourceFetchTimeout 是拉取来源内容（含清单里的分类文件）的单次超时。
+// 清单型来源可能有几十 MB，慢速网络下 60 秒不够用，这里放宽到 20 分钟。
+const promptSourceFetchTimeout = 20 * time.Minute
+
+// promptSourceFetchAttempts 是单次拉取的尝试次数，公网源偶发失败时自动重试。
+const promptSourceFetchAttempts = 3
+
+// promptSourceHTTPClient 放宽默认传输层超时：默认 TLS 握手只有 10 秒，
+// 跨境或慢速网络下经常在握手阶段就超时失败。
+var promptSourceHTTPClient = &http.Client{
+	Timeout: promptSourceFetchTimeout,
+	Transport: &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		TLSHandshakeTimeout:   60 * time.Second,
+		ResponseHeaderTimeout: 120 * time.Second,
+		ExpectContinueTimeout: 10 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
+		ForceAttemptHTTP2:     true,
+	},
+}
+
 func fetchPromptSourceText(address string) (string, error) {
+	var lastErr error
+	for attempt := 1; attempt <= promptSourceFetchAttempts; attempt++ {
+		body, err := fetchPromptSourceTextOnce(address)
+		if err == nil {
+			return body, nil
+		}
+		lastErr = err
+		if attempt < promptSourceFetchAttempts {
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+		}
+	}
+	return "", lastErr
+}
+
+func fetchPromptSourceTextOnce(address string) (string, error) {
 	request, err := http.NewRequest(http.MethodGet, address, nil)
 	if err != nil {
 		return "", errors.New("来源地址无效")
 	}
-	client := http.Client{Timeout: 60 * time.Second}
-	response, err := client.Do(request)
+	response, err := promptSourceHTTPClient.Do(request)
 	if err != nil {
 		return "", fmt.Errorf("拉取来源内容失败：%w", err)
 	}
@@ -310,8 +438,9 @@ func fetchPromptSourceText(address string) (string, error) {
 }
 
 // promptSourceItem 兼容注册表与常见提示词 JSON 的字段命名。
+// id 可能是字符串或数字，sourceMedia 是 skill 类仓库使用的图片字段。
 type promptSourceItem struct {
-	ID                 string   `json:"id"`
+	ID                 any      `json:"id"`
 	Title              string   `json:"title"`
 	Name               string   `json:"name"`
 	Prompt             string   `json:"prompt"`
@@ -321,6 +450,7 @@ type promptSourceItem struct {
 	Cover              string   `json:"cover"`
 	Image              string   `json:"image"`
 	ReferenceImageURLs []string `json:"referenceImageUrls"`
+	SourceMedia        []string `json:"sourceMedia"`
 	VideoURLs          []string `json:"videoUrls"`
 	VideoURL           string   `json:"videoUrl"`
 	Tags               []string `json:"tags"`
@@ -331,11 +461,17 @@ type promptSourceItem struct {
 }
 
 func parsePromptSourceItems(raw string, source model.PromptSource, now string) ([]model.Prompt, error) {
-	return parsePromptSourceItemsWithTime(raw, source, func(int) string { return now })
+	return parsePromptSourceItemsIn(raw, source, "", func(int) string { return now })
 }
 
 // parsePromptSourceItemsWithTime 解析提示词数组，时间戳由调用方按序号生成。
 func parsePromptSourceItemsWithTime(raw string, source model.PromptSource, timestampAt func(index int) string) ([]model.Prompt, error) {
+	return parsePromptSourceItemsIn(raw, source, "", timestampAt)
+}
+
+// parsePromptSourceItemsIn 解析提示词数组，时间戳由调用方按序号生成。
+// idPrefix 用于清单型来源按分类隔离自增编号，避免不同分类文件之间 ID 冲突。
+func parsePromptSourceItemsIn(raw string, source model.PromptSource, idPrefix string, timestampAt func(index int) string) ([]model.Prompt, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return nil, errors.New("来源返回内容为空")
@@ -352,12 +488,12 @@ func parsePromptSourceItemsWithTime(raw string, source model.PromptSource, times
 		if title == "" || prompt == "" {
 			continue
 		}
-		id := strings.TrimSpace(value.ID)
+		id := strings.TrimSpace(promptSourceIDString(value.ID))
 		switch {
 		case id == "":
-			id = fmt.Sprintf("%s-%04d", source.ID, index+1)
+			id = fmt.Sprintf("%s%s-%04d", idPrefix, source.ID, index+1)
 		case !strings.HasPrefix(id, source.ID):
-			id = source.ID + "-" + id
+			id = source.ID + "-" + idPrefix + id
 		}
 		if seen[id] {
 			continue
@@ -367,7 +503,7 @@ func parsePromptSourceItemsWithTime(raw string, source model.PromptSource, times
 		items = append(items, model.Prompt{
 			ID:        id,
 			Title:     title,
-			CoverURL:  absolutePromptImageURL(source.URL, firstNonEmptyString(value.CoverURL, value.Cover, value.Image, firstString(value.ReferenceImageURLs))),
+			CoverURL:  resolvePromptSourceURL(source.URL, firstNonEmptyString(value.CoverURL, value.Cover, value.Image, firstString(value.ReferenceImageURLs), firstString(value.SourceMedia))),
 			Prompt:    prompt,
 			Tags:      normalizePromptSourceTags(value.Tags, value.Author),
 			Category:  source.Category,
@@ -382,6 +518,23 @@ func parsePromptSourceItemsWithTime(raw string, source model.PromptSource, times
 		return nil, errors.New("来源没有解析到有效提示词")
 	}
 	return items, nil
+}
+
+// promptSourceIDString 兼容字符串与数字两种 ID。
+func promptSourceIDString(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case float64:
+		if typed == float64(int64(typed)) {
+			return strconv.FormatInt(int64(typed), 10)
+		}
+		return strconv.FormatFloat(typed, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(typed)
+	default:
+		return ""
+	}
 }
 
 func normalizePromptSourceTags(tags []string, author string) []string {
@@ -401,7 +554,8 @@ func normalizePromptSourceTags(tags []string, author string) []string {
 	return result
 }
 
-func absolutePromptImageURL(baseURL string, value string) string {
+// resolvePromptSourceURL 把来源里的相对地址（图片、分类文件）解析成绝对地址。
+func resolvePromptSourceURL(baseURL string, value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return ""

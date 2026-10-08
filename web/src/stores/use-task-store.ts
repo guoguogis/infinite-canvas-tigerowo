@@ -122,19 +122,25 @@ async function collectCanvasTasks(): Promise<RunningTask[]> {
 async function collectAdminTasks(): Promise<RunningTask[]> {
     const token = useUserStore.getState().token;
     if (!token) return [];
+    const currentUserId = useUserStore.getState().user?.id || "";
     const items = await fetchAdminRunningTasks(token).catch(() => []);
     return dedupeTasks(
-        items.map((item) => ({
-            id: `${item.kind}:${item.id}`,
-            kind: item.kind,
-            title: item.prompt || "",
-            model: item.model || "",
-            status: item.status || "processing",
-            progress: item.progress || 0,
-            createdAt: parseTaskTime(item.createdAt),
-            href: "",
-            userName: item.userName || item.userId,
-        })),
+        items.map((item) => {
+            // 管理员能看到所有用户的任务，但只有属于自己的任务能跳到详情页，其他用户的任务只展示。
+            const mine = Boolean(currentUserId) && item.userId === currentUserId;
+            const href = mine && item.kind === "video" ? `/video?task=${encodeURIComponent(item.id)}` : mine && item.kind === "image" ? `/image?task=${encodeURIComponent(item.id)}` : "";
+            return {
+                id: `${item.kind}:${item.id}`,
+                kind: item.kind,
+                title: item.prompt || "",
+                model: item.model || "",
+                status: item.status || "processing",
+                progress: item.progress || 0,
+                createdAt: parseTaskTime(item.createdAt),
+                href,
+                userName: item.userName || item.userId,
+            };
+        }),
     );
 }
 

@@ -112,6 +112,7 @@ export function PromptSourcesManager({
                                     </Space>
                                 ) : (
                                     <Space size={4}>
+                                        {item.kind === "manifest" ? <Tag className="m-0 text-[10px]">清单聚合</Tag> : null}
                                         <Typography.Text className="max-w-[320px] truncate" title={value}>
                                             {value}
                                         </Typography.Text>

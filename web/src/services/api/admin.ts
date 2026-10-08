@@ -13,6 +13,8 @@ export type AdminPromptCategory = {
     githubUrl: string;
     remote: boolean;
     sourceId?: string;
+    /** 该分类下的提示词条数，用于隐藏空分类。 */
+    promptCount: number;
 };
 
 export type AdminUser = {
@@ -108,7 +110,7 @@ export type AdminPromptSource = {
     url: string;
     homepage: string;
     category: string;
-    kind: "remote" | "builtin";
+    kind: "remote" | "builtin" | "manifest";
     enabled: boolean;
     builtIn: boolean;
     lastSyncAt: string;

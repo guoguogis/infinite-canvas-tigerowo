@@ -64,6 +64,14 @@ func DB() (*gorm.DB, error) {
 		if dbErr != nil {
 			return
 		}
+		if driver == "sqlite" {
+			// SQLite 同一时刻只允许一个写者。连接池里存在多条连接时，
+			// 并发写入（来源同步 + 后台轮询器 + 定时任务）会互相争抢并出现打开失败，
+			// 因此把 sqlite 限制为单连接串行执行。
+			if sqlDB, err := db.DB(); err == nil {
+				sqlDB.SetMaxOpenConns(1)
+			}
+		}
 		dbErr = db.AutoMigrate(
 			&model.User{},
 			&model.CreditLog{},

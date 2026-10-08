@@ -78,19 +78,51 @@ func DeletePromptSource(id string) error {
 
 // ReplacePromptSourcePrompts 用最新同步结果替换某个来源的全部提示词。
 func ReplacePromptSourcePrompts(sourceID string, items []model.Prompt) error {
+	if err := DeletePromptSourcePrompts(sourceID); err != nil {
+		return err
+	}
+	return AppendPromptSourcePrompts(sourceID, items)
+}
+
+// DeletePromptSourcePrompts 清空某个来源已有的提示词。
+func DeletePromptSourcePrompts(sourceID string) error {
 	db, err := DB()
 	if err != nil {
 		return err
 	}
-	return db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("source_id = ?", sourceID).Delete(&model.Prompt{}).Error; err != nil {
+	return db.Where("source_id = ?", sourceID).Delete(&model.Prompt{}).Error
+}
+
+// promptInsertBatchSize 是单条 INSERT 的行数上限。
+// SQLite 单条语句的绑定参数有上限（默认 32766），prompts 有 11 列，500 行约 5500 个参数，留足余量。
+const promptInsertBatchSize = 500
+
+// AppendPromptSourcePrompts 追加写入某个来源的提示词。
+// 按行数切块，每块用一条独立的 INSERT 语句写入：
+// 既避免超出 SQLite 的单语句参数上限，也不使用 GORM 的 CreateInBatches —— 它会把所有批次包进同一个
+// 显式事务，在本项目的 SQLite 配置下执行多条语句会报 unable to open database file。
+func AppendPromptSourcePrompts(sourceID string, items []model.Prompt) error {
+	if len(items) == 0 {
+		return nil
+	}
+	db, err := DB()
+	if err != nil {
+		return err
+	}
+	for index := range items {
+		items[index].SourceID = sourceID
+	}
+	for start := 0; start < len(items); start += promptInsertBatchSize {
+		end := start + promptInsertBatchSize
+		if end > len(items) {
+			end = len(items)
+		}
+		chunk := items[start:end]
+		if err := db.Create(&chunk).Error; err != nil {
 			return err
 		}
-		if len(items) == 0 {
-			return nil
-		}
-		return tx.Create(&items).Error
-	})
+	}
+	return nil
 }
 
 // CountPromptSourceItems 返回某个来源当前的提示词条数。
