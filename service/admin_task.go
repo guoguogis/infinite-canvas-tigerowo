@@ -76,6 +76,19 @@ func ListAdminRunningTasks(ctx context.Context, userID string) ([]AdminRunningTa
 		})
 	}
 
+	musicTasks, err := repository.ListActiveMusicTasks(owner, adminRunningTaskLimit)
+	if err != nil {
+		return nil, err
+	}
+	for _, task := range musicTasks {
+		result = append(result, AdminRunningTask{
+			ID: task.ID, Kind: "music", UserID: task.UserID, UserName: task.UserDisplayName,
+			Model: task.Model, Status: task.Status, Progress: task.Progress, Prompt: firstNonEmpty(task.Title, task.Prompt),
+			Source: task.Source, SourceID: task.SourceID,
+			CreatedAt: task.CreatedAt, UpdatedAt: task.UpdatedAt,
+		})
+	}
+
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].CreatedAt > result[j].CreatedAt
 	})

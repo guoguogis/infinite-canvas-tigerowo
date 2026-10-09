@@ -430,7 +430,7 @@ export async function measureAdminStorageProvider(token: string, payload: { inde
 
 export type AdminRunningTask = {
     id: string;
-    kind: "video" | "image" | "audio";
+    kind: "video" | "image" | "audio" | "music";
     userId: string;
     userName: string;
     model: string;

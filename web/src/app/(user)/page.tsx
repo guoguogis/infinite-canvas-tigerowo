@@ -8,6 +8,7 @@ import { CanvasDeleteProjectsDialog } from "./canvas/components/canvas-delete-pr
 import { CanvasProjectCard } from "./canvas/components/canvas-project-card";
 import { useCanvasStore } from "./canvas/stores/use-canvas-store";
 import { useHomeMediaHistory, type HomeMediaHistoryItem } from "./use-home-media-history";
+import { isMusicTaskRunning, listMusicTasks, musicTaskAudioUrl, type MusicTask } from "@/services/api/music";
 import { useTaskStore, type RunningTask, type RunningTaskKind } from "@/stores/use-task-store";
 
 const HOME_ROW_LIMIT = 10;
@@ -16,6 +17,7 @@ const runningKindLabels: Record<RunningTaskKind, string> = {
     video: "视频",
     image: "图片",
     audio: "音频",
+    music: "音乐",
 };
 
 export default function IndexPage() {
@@ -26,6 +28,25 @@ export default function IndexPage() {
     const now = useElapsedNow(runningTasks.length > 0);
     const running = groupRunningTasks(runningTasks);
     const canvases = [...projects].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)).slice(0, HOME_ROW_LIMIT);
+    const [musicTasks, setMusicTasks] = useState<MusicTask[]>([]);
+    const [musicLoading, setMusicLoading] = useState(true);
+
+    useEffect(() => {
+        let active = true;
+        listMusicTasks({ pageSize: HOME_ROW_LIMIT })
+            .then((payload) => {
+                if (active) setMusicTasks(payload.items);
+            })
+            .catch(() => {
+                if (active) setMusicTasks([]);
+            })
+            .finally(() => {
+                if (active) setMusicLoading(false);
+            });
+        return () => {
+            active = false;
+        };
+    }, []);
 
     return (
         <main className="h-full overflow-auto bg-background text-stone-950 dark:text-stone-100">
@@ -63,6 +84,17 @@ export default function IndexPage() {
                         <MediaHistoryCard key={item.id} item={item} kind="image" />
                     ))}
                 </HistoryRow>
+
+                <HistoryRow title="我的音乐" href="/music" count={running.music.length + musicTasks.length} loading={musicLoading && !running.music.length} empty="还没有生成音乐">
+                    {running.music.map((task) => (
+                        <RunningTaskCard key={task.id} task={task} now={now} widthClass="w-64" />
+                    ))}
+                    {musicTasks
+                        .filter((task) => !isMusicTaskRunning(task.status))
+                        .map((task) => (
+                            <MusicHistoryCard key={task.id} task={task} />
+                        ))}
+                </HistoryRow>
             </div>
 
             <CanvasDeleteProjectsDialog />
@@ -72,11 +104,12 @@ export default function IndexPage() {
 
 /** 按来源页面归类执行中任务：画布内的任务归「我的画布」，工作台任务归对应工作台。 */
 function groupRunningTasks(tasks: RunningTask[]) {
-    const groups = { canvas: [] as RunningTask[], video: [] as RunningTask[], image: [] as RunningTask[] };
+    const groups = { canvas: [] as RunningTask[], video: [] as RunningTask[], image: [] as RunningTask[], music: [] as RunningTask[] };
     for (const task of tasks) {
         if (task.href.startsWith("/canvas/")) groups.canvas.push(task);
         else if (task.href.startsWith("/video") || task.kind === "video") groups.video.push(task);
         else if (task.href.startsWith("/image") || task.kind === "image") groups.image.push(task);
+        else if (task.href.startsWith("/music") || task.kind === "music") groups.music.push(task);
     }
     return groups;
 }
@@ -146,6 +179,17 @@ function MediaHistoryCard({ item, kind }: { item: HomeMediaHistoryItem; kind: "i
                 <p className="line-clamp-2 min-h-8 whitespace-pre-wrap text-stone-700 dark:text-stone-200">{item.prompt || "未填写提示词"}</p>
                 <p className="truncate text-stone-500">{[item.model, formatHomeTime(item.createdAt)].filter(Boolean).join(" · ")}</p>
             </div>
+        </Link>
+    );
+}
+
+function MusicHistoryCard({ task }: { task: MusicTask }) {
+    const url = musicTaskAudioUrl(task);
+    return (
+        <Link href="/music" className="flex w-64 shrink-0 flex-col gap-2 rounded-lg border border-stone-200 bg-background p-3 transition hover:border-stone-400 dark:border-stone-800 dark:hover:border-stone-600">
+            <p className="line-clamp-2 min-h-8 whitespace-pre-wrap text-xs text-stone-700 dark:text-stone-200">{task.title || task.prompt || "未命名作品"}</p>
+            <p className="truncate text-xs text-stone-500">{[(task.styleTags || []).join("/"), task.model, task.created_at ? formatHomeTime(Date.parse(task.created_at)) : ""].filter(Boolean).join(" · ")}</p>
+            {url ? <audio src={url} controls className="w-full" /> : null}
         </Link>
     );
 }

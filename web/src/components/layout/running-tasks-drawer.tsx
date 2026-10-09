@@ -13,6 +13,7 @@ const kindIcons: Record<RunningTaskKind, typeof Video> = {
     video: Video,
     image: ImagePlus,
     audio: Music2,
+    music: Music2,
 };
 
 const statusLabels: Record<string, string> = {

@@ -104,7 +104,7 @@ export type AiConfig = {
 };
 
 export const CONFIG_STORE_KEY = "infinite-canvas:ai_config_store";
-export type ModelCapability = "image" | "video" | "text" | "audio";
+export type ModelCapability = "image" | "video" | "text" | "audio" | "music";
 export type ModelCapabilities = Partial<Record<string, ModelCapability>>;
 
 export const defaultConfig: AiConfig = {
@@ -330,8 +330,14 @@ function isAudioModelName(model: string) {
     return value.includes("audio") || value.includes("tts") || value.includes("speech") || value.includes("voice") || value.includes("music") || value.includes("sound") || value.includes("elevenlabs") || value.includes("suno") || value.includes("lyrics") || value.includes("vocal") || value.includes("midi") || value.includes("wav");
 }
 
+/** 音乐生成模型名：按名称兜底识别，显式声明的 modelCapabilities 优先。 */
+function isMusicModelName(model: string) {
+    const value = model.toLowerCase();
+    return value.includes("music") || value.includes("song") || value.includes("mureka") || value.includes("gensong") || value.includes("genbgm");
+}
+
 function isTextModelName(model: string) {
-    return !isImageModelName(model) && !isVideoModelName(model) && !isAudioModelName(model);
+    return !isImageModelName(model) && !isVideoModelName(model) && !isAudioModelName(model) && !isMusicModelName(model);
 }
 
 export function modelMatchesCapability(model: string, capability?: ModelCapability, protocol = "", modelCapabilities: ModelCapabilities = {}) {
@@ -343,6 +349,8 @@ export function modelMatchesCapability(model: string, capability?: ModelCapabili
     }
     // 豆包语音合成渠道只承载音频模型，不按模型名判断能力。
     if (protocol === "doubao-tts") return capability === "audio";
+    // 音乐渠道只承载音乐模型，与 TTS 音频模型分开。
+    if (protocol === "volc-music" || protocol === "tokenhub-music") return capability === "music";
     if (protocol === "gemini") {
         const value = model.toLowerCase();
         const video = /^models\/veo-|^veo-/.test(value);
@@ -356,6 +364,7 @@ export function modelMatchesCapability(model: string, capability?: ModelCapabili
     if (capability === "image") return isImageModelName(model);
     if (capability === "video") return isVideoModelName(model);
     if (capability === "audio") return isAudioModelName(model);
+    if (capability === "music") return isMusicModelName(model);
     return isTextModelName(model);
 }
 

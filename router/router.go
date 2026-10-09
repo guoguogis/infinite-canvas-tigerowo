@@ -64,6 +64,15 @@ func New() *gin.Engine {
 	v1.DELETE("/video-tasks/:id", func(c *gin.Context) {
 		handler.DeleteUserVideoTask(c.Writer, c.Request, c.Param("id"))
 	})
+	v1.POST("/music-tasks", gin.WrapF(handler.CreateMusicTask))
+	v1.GET("/music-tasks", gin.WrapF(handler.UserMusicTasks))
+	v1.POST("/music-tasks/lyrics", gin.WrapF(handler.GenerateMusicLyrics))
+	v1.GET("/music-tasks/:id", func(c *gin.Context) {
+		handler.GetMusicTask(c.Writer, c.Request, c.Param("id"))
+	})
+	v1.DELETE("/music-tasks/:id", func(c *gin.Context) {
+		handler.DeleteUserMusicTask(c.Writer, c.Request, c.Param("id"))
+	})
 	v1.GET("/videos/:id", func(c *gin.Context) {
 		handler.AIVideo(c.Writer, c.Request, c.Param("id"))
 	})

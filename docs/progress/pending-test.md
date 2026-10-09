@@ -94,11 +94,69 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 旧数据不迁移：改动前的全局命名空间数据不再被读取；画布项目会由账号同步补回，纯本地且未同步到账号的媒体不会恢复。
 - 验证点：同一浏览器登录 A 账号建画布、生成视频，退出后登录 B 账号，B 看不到 A 的画布、视频、图片与素材；A 重新登录后数据仍在。
 
+## 管理后台显示顶部菜单
+
+- 管理后台是独立的 `(admin)` 路由组，不复用 `(user)/layout.tsx`，因此一直只有自己的 antd 侧边栏 + 标题栏，没有任何回到其它页面的入口（侧边栏里只有一个「前往画布」按钮）。现在在后台布局顶部加上 `AppTopNav`，控制台入口、站点导航、头像与任务入口都可直接使用。
+- 同时去掉了后台标题栏右侧原本的 `UserStatusActions`（与顶部菜单完全重复，会同时出现两个头像）；后台页标题与侧边栏不变。
+- 侧边栏底部的「前往画布」按钮一并去掉（顶部菜单已有「我的画布」，功能重复），现在底部只保留「退出登录」。
+- 布局高度从固定 `100vh` 改为「顶部菜单 + `flex-1` 自适应」，侧边栏底部按钮与内容区滚动行为不变。
+- 验证点：进入 `/admin/users` 顶部出现完整菜单且只有一个头像；侧边栏、页标题「用户管理」、表格正常；侧边栏底部只剩「退出登录」且仍在视口内；点顶部导航能离开后台进入其它页面。
+
 ## 画布详情页显示顶部菜单
 
 - `AppTopNav` 原来用 `hideHeader = /^\/canvas\/[^/]+/.test(pathname)` 在画布详情页隐藏整条顶部菜单，现在去掉了这个判断，画布详情页与其它页面一样显示顶部菜单（控制台入口、导航、头像与任务入口）。
 - 画布自身的悬浮工具栏保持不变：它承载着顶部菜单没有的内容（算力点余额、快捷键入口、Agent 展开按钮），因此没有一并移除，但配置/主题/头像等入口与顶部菜单存在重复。
 - 验证点：进入 `/canvas/<id>` 后顶部出现控制台菜单与头像；画布本体正常渲染、画布菜单按钮与算力点余额仍在；画布区域高度自适应，不再被顶栏挤出屏幕。
+
+## 音乐创作台（`/music`）
+
+设计稿与原型在 `docs/design/music-studio/`（`prototype.html` 可交互原型、`compare.html` 竞品与能力对标）。
+
+**后端**
+- 新增 `music_tasks` 表与 `model/repository/service/handler` 四层实现，接口：`POST /api/v1/music-tasks`（创建，扣算力点）、`GET /api/v1/music-tasks`（列表，支持状态/分页）、`GET /api/v1/music-tasks/:id`（轮询详情）、`DELETE /api/v1/music-tasks/:id`、`POST /api/v1/music-tasks/lyrics`（歌词生成）。
+- 后台轮询器（`service.StartMusicTaskPoller`，由 `main.go` 启动）按上游任务状态推进任务；**上游返回的音频会立即转存到自有存储**，任务只记录自有存储地址与 `mime_type/bytes/duration_ms`——上游地址只有 12 小时到 7 天有效期，不能透传给前端。
+- 渠道协议适配层 `service/music_provider.go`：火山引擎豆包音乐走 API Gateway Bearer（`ServiceName: imagination`，`Version=2024-08-12`，默认用后付费 Action `GenSongForTime`/`GenBGMForTime`，预付费改常量即走 `GenSongV4`/`GenBGM`）；腾讯云 TokenHub 走同步接口并校验 `base_resp.status_code`。**AK/SK 的 HMAC-SHA256 模式未实现**，只支持 Gateway Bearer。
+- 渠道 `Protocol` 取值 `volc-music` / `tokenhub-music`；`ModelCapabilities` 新增 `music` 能力值（音乐模型独立于 TTS 音频模型，避免与音色选择混在一起）。
+- 新增 MiniMax 官方音乐协议 `minimax-music`（`POST /v1/music_generation`，同步返回；请求体、`base_resp.status_code` 校验与 `data.audio` 解析和 TokenHub 转售同构，两者共用同一套提交实现）。BaseURL 只填域名时补 `/v1/music_generation`，只填到 `/v1` 时补剩余路径，已带其它路径（第三方中转）时原样使用。歌词走官方 `POST /v1/lyrics_generation`（`mode: write_full_song`，取响应顶层 `lyrics`）。
+- **上游服务调整**：MiniMax 官方自 2026 年 8 月 20 日起，音乐生成与歌词生成付费接口不再面向新用户提供服务（历史付费用户可继续使用），免费接口 `music-3.0-free` / `music-2.6-free` / `music-cover-free` 停止服务；新账号可能拿不到权限，属于上游策略，代码中已注释说明。
+- 验证点：设置里能选到「MiniMax 音乐」渠道并填 `music-3.0` 等模型；`/music` 提交任务后同步返回并转存到自有存储；上游返回 `base_resp.status_code != 0` 时任务失败且退还算力点。
+- 管理员 `GET /api/admin/tasks` 纳入音乐任务（`kind: "music"`），「我的任务」抽屉对管理员可见。
+- 算力点：创建时扣费；**提交阶段就失败**（上游未接手）会退还，**上游已接手后失败不退还**（上游已产生消耗，代码中有明确注释说明这是刻意策略）。
+
+**前端**
+- `/music` 页面按原型实现：左侧 420px 参数区 + 右侧结果区；**参数区能力驱动**——切「歌曲/纯音乐」时时长区间、歌词输入、人声可用性随之变化并给出上限提示。
+- 模型卡片显示**授权级别徽标**（官方 API / 授权转售）与折算单价及「预计消耗 N 算力点」（取真实的 `publicSettings.modelChannel.modelCosts`，算不出时显示 `—`）。
+- 新增可复用音频播放器 `web/src/components/music/audio-player.tsx`（项目此前只有裸 `<audio controls>`）。
+- 「我的音乐」历史、A/B 候选试听、合规声明（AI 标识与音频水印不可去除）。
+- 无可用音乐模型时**优雅降级**：给出「请先在设置中配置音乐模型与渠道」并渲染一键打开配置弹窗的入口。
+- 导航加回「音乐创作台」（位于「视频创作台」之后）；首页「我的图片」行下方新增「我的音乐」行（执行中卡片 + 已完成卡片，紧凑裸 `<audio>` 试听）；音乐任务接入右上角「我的任务」（`kind: music`，深链 `/music?task=<id>`）。
+
+### 布局对齐「视频创作台」
+
+按 [`video/page.tsx`](<web/src/app/(user)/video/page.tsx>) 重构 `/music` 的布局，左右两栏与该页**逐字同款**：
+
+- **左右留白**：`main` 由「居中 + `max-w-7xl` + `px-6 py-6`」改为 **`p-3`（12px）+ 全宽 + grid 两列 `420px minmax(0,1fr)`**，与视频页一致。
+- **左栏是单一面板**：固定 header（`text-2xl`「音乐创作台」+ 侧边/底部切换）→ 可滚动 body → **固定 footer**（生成按钮 + 算力点预估 + 错误提示），生成按钮不再随内容滚走。
+- **历史记录**：由「参数卡片下方的独立卡片」移入**左栏滚动区内**的分组；底部布局下放入浮层展开区（`max-h-56` 可滚动），保证两种布局都有入口。
+- **参数分组**：新增本地 `MusicSection`（照视频页 `WorkbenchSection`），分组为 创作模式 / 歌词 / 风格描述 / 风格标签 / 情绪场景 / 时长 / 参数 / 模型 / 生成数量 / 我的音乐。
+- **侧边 / 底部布局切换**：新增 `WorkbenchLayout` 与 `MusicWorkbenchHeader`，偏好存 `localStorage`（键 `infinite-canvas:music-workbench-layout`，与视频页分开）。底部布局照视频页的**玻璃拟态浮层**（`fixed inset-x-0 bottom-5 z-40` + `rounded-[24px]` + `backdrop-blur-2xl`），结果面板加 `pb-40 lg:pb-44` 防遮挡。
+- **右栏也是同款卡片面板**（`rounded-lg border bg-card shadow-sm lg:min-h-0 lg:overflow-y-auto lg:p-5`）：头部为图标 + `text-xl`「本次生成」+ 计数 `Tag` + 刷新；结果 `grid gap-3 md:grid-cols-2 2xl:grid-cols-3`；空态 `min-h-[320px] lg:min-h-[560px]` 虚线框。
+- **提示词动作按钮**：歌词与风格描述各加「读取剪贴板」「清空」（歌词区另保留「AI 写词」）。**未加**「提示词库」「我的素材」——音乐暂无提示词分类，素材库对歌词/风格描述无意义。
+- **A/B 候选**改为在各批次的**第一张结果卡片内部**展示。
+- 修复：合规声明原被放进「有本次结果才渲染」的分支，导致**侧边布局空态下不显示**（底部布局是始终显示的，两边不一致）；现统一为**无论有无结果都显示**。
+
+**已知取舍**：① 歌曲/纯音乐模式切换从 header 移到 body 第一个分组「创作模式」（420px 左栏里 header 同放标题+切换会换行）；② 底部浮层只放 模式/模型/时长/生成数量 + 风格标签 + 历史，**语言/人声/调式/BPM 需切回侧边布局**才能改；③ `canGenerate` 仍为「未选模型 / 提交中才禁用」，未收紧成「空输入即禁用」。
+
+**验证情况（如实记录）**
+- 已验证：`go build`/`go vet`/`go test` 全绿；前端 `tsc` 通过（仅 `model-picker.tsx` 4 条历史基线错误）；浏览器实测 11/11（导航项、首页行、`/music` 页面与模式切换）；用本地 mock 上游实跑通完整链路——创建扣费 → 轮询 16 次约 32 秒 → `completed`，`audio_url` 指向自有存储（`/api/files/<id>/content?s=<签名>`）且无 token 可播放，`storage_key`/`mime_type`/`bytes`/`duration_ms` 均已记录。
+- **未验证**：真实厂商 API Key 的一次端到端（无 Key）；纯音乐 `GenBGMForTime` 分支与错误协议的路由拦截未跑完。
+- **已补充验证（腾讯云 TokenHub）**：渠道 `channel-tokenhub-music`（协议 `tokenhub-music`，服务 ID `minimax-music-v2.6`，按量后付费）配置后，**从 `/music` 界面提交并真实生成成功**：`queued` → 约 88–120 秒 → `completed`，产物转存自有存储（`media/mpeg`，442–626 KB），浏览器实测可播（`accept-ranges: bytes`，`duration` 156 秒）。萤火山适配器的 `output_format` 曾固定 `hex`，**实测腾讯云网关在 hex 模式下 `data.audio` 返回空**，改为 `url` 后一次通过（上游 url 有效期 24 小时，服务端拿到后立即转存，无过期风险）。
+- 布局对齐的运行时验证：左右面板 computed style 与视频页逐项一致（圆角 10px / 边框 1px / 内边距 / overflow）；结果网格在 1600px 宽下为 **3 列**；侧边↔底部切换、偏好持久化、浮层玻璃拟态（`blur(40px)` + `24px` 圆角）均实测通过。
+- 已知配置要点：光配私有渠道不够，模型名还必须出现在公共配置的「系统可用模型」里，否则报「模型未开放」。
+
+**待定**
+- 公共配置缺少音乐的系统默认值（音频有 `DefaultAudioChannelID/Model/Voice` 三级默认，音乐没有），新用户需自行配置一次。
+- 「重命名」「收藏」未实现（后端无对应接口，未自行编造）；A/B 候选为前端本地分组，刷新后分组信息丢失；任务抽屉里 music 与 audio 图标同为 `Music2`，建议区分。
 
 ## 隐藏没有提示词的分类
 

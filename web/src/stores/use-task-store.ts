@@ -7,11 +7,12 @@ import { CanvasNodeType } from "@/app/(user)/canvas/types";
 import { isCanvasImageNodeType } from "@/app/(user)/canvas/utils/canvas-panorama";
 import { fetchAdminRunningTasks } from "@/services/api/admin";
 import { listCanvasImageTasks } from "@/services/api/image";
+import { isMusicTaskRunning, listMusicTasks } from "@/services/api/music";
 import { listVideoGenerationTasks } from "@/services/api/video";
 import type { AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 
-export type RunningTaskKind = "video" | "image" | "audio";
+export type RunningTaskKind = "video" | "image" | "audio" | "music";
 
 export type RunningTask = {
     id: string;
@@ -59,10 +60,13 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 }));
 
 async function collectOwnTasks(config: AiConfig): Promise<RunningTask[]> {
-    const [videoTasks, imageTasks, canvasTasks] = await Promise.all([
+    const [videoTasks, imageTasks, canvasTasks, musicTasks] = await Promise.all([
         listVideoGenerationTasks(config).catch(() => []),
         listCanvasImageTasks(config, ["image-workbench", "workflow"]).catch(() => []),
         collectCanvasTasks(),
+        listMusicTasks({ pageSize: 20 })
+            .then((payload) => payload.items)
+            .catch(() => []),
     ]);
     const tasks: RunningTask[] = [];
     for (const task of videoTasks) {
@@ -92,6 +96,20 @@ async function collectOwnTasks(config: AiConfig): Promise<RunningTask[]> {
         });
     }
     tasks.push(...canvasTasks);
+    for (const task of musicTasks) {
+        if (!isMusicTaskRunning(task.status)) continue;
+        tasks.push({
+            id: `music:${task.id}`,
+            kind: "music",
+            title: task.title || task.prompt || "",
+            model: task.model || "",
+            status: task.status || "processing",
+            progress: task.progress || 0,
+            createdAt: parseTaskTime(task.created_at),
+            href: `/music?task=${encodeURIComponent(task.id)}`,
+            userName: "",
+        });
+    }
     return dedupeTasks(tasks);
 }
 
@@ -128,7 +146,7 @@ async function collectAdminTasks(): Promise<RunningTask[]> {
         items.map((item) => {
             // 管理员能看到所有用户的任务，但只有属于自己的任务能跳到详情页，其他用户的任务只展示。
             const mine = Boolean(currentUserId) && item.userId === currentUserId;
-            const href = mine && item.kind === "video" ? `/video?task=${encodeURIComponent(item.id)}` : mine && item.kind === "image" ? `/image?task=${encodeURIComponent(item.id)}` : "";
+            const href = mine && item.kind === "video" ? `/video?task=${encodeURIComponent(item.id)}` : mine && item.kind === "image" ? `/image?task=${encodeURIComponent(item.id)}` : mine && item.kind === "music" ? `/music?task=${encodeURIComponent(item.id)}` : "";
             return {
                 id: `${item.kind}:${item.id}`,
                 kind: item.kind,

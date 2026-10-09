@@ -76,12 +76,12 @@ type WorkflowEntry struct {
 }
 
 type WorkflowSummary struct {
-	Provider   string  `json:"provider"`
-	Kind       string  `json:"kind"`
-	WorkflowID string  `json:"workflowId"`
-	Title      string  `json:"title"`
-	Capability string  `json:"capability"`
-	Enabled    bool    `json:"enabled"`
+	Provider   string `json:"provider"`
+	Kind       string `json:"kind"`
+	WorkflowID string `json:"workflowId"`
+	Title      string `json:"title"`
+	Capability string `json:"capability"`
+	Enabled    bool   `json:"enabled"`
 }
 
 // ModelCost 模型算力点配置。
@@ -103,6 +103,8 @@ type PublicModelChannelSetting struct {
 	DefaultAudioChannelID  string                   `json:"defaultAudioChannelId"`
 	DefaultAudioModel      string                   `json:"defaultAudioModel"`
 	DefaultAudioVoice      string                   `json:"defaultAudioVoice"`
+	DefaultMusicChannelID  string                   `json:"defaultMusicChannelId"`
+	DefaultMusicModel      string                   `json:"defaultMusicModel"`
 	SystemPrompt           string                   `json:"systemPrompt"`
 	SystemPrompts          SystemPromptSetting      `json:"systemPrompts"`
 	AllowCustomChannel     *bool                    `json:"allowCustomChannel"`

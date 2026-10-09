@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>音乐创作台 · 设计原型</title>
+<style>
+  :root{
+    --bg:#fafaf9; --panel:#fff; --line:#e7e5e4; --line2:#f5f5f4;
+    --text:#1c1917; --muted:#78716c; --faint:#a8a29e;
+    --sky:#0ea5e9; --sky-bg:#f0f9ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.6 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;}
+  .topnav{height:64px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;background:rgba(250,250,249,.92);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:600}
+  .logo{width:20px;height:20px;background:var(--text);
+    -webkit-mask:url(/logo.svg) center/contain no-repeat;mask:url(/logo.svg) center/contain no-repeat}
+  .nav{display:flex;gap:26px;margin-left:34px;font-size:14px;color:var(--muted)}
+  .nav span.on{color:var(--text);font-weight:500;border-bottom:1px solid var(--text);padding-bottom:20px}
+  .actions{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:13px}
+  .avatar{width:24px;height:24px;border-radius:50%;border:1px solid #d6d3d1;display:grid;place-items:center;font-size:11px;font-weight:600;color:#44403c}
+  .wrap{max-width:1400px;margin:0 auto;padding:20px 24px 60px}
+  .grid{display:grid;grid-template-columns:420px minmax(0,1fr);gap:20px;align-items:start}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px}
+  .pad{padding:16px}
+  h2{font-size:15px;font-weight:600;margin:0 0 2px}
+  .sub{font-size:12px;color:var(--faint)}
+  .sec{border-top:1px solid var(--line2);padding:14px 16px}
+  .sec:first-of-type{border-top:0}
+  label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px}
+  .seg{display:inline-flex;background:#f5f5f4;border-radius:9px;padding:3px;gap:2px}
+  .seg button{border:0;background:transparent;padding:6px 16px;border-radius:7px;font-size:13px;color:var(--muted);cursor:pointer;font-family:inherit}
+  .seg button.on{background:#fff;color:var(--text);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  input[type=text],textarea,select{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;
+    font:13px/1.6 inherit;background:#fff;color:var(--text)}
+  textarea{resize:none}
+  .tags{display:flex;flex-wrap:wrap;gap:6px}
+  .tag{border:1px solid var(--line);border-radius:999px;padding:3px 11px;font-size:12px;color:var(--muted);cursor:pointer}
+  .tag.on{border-color:var(--sky);background:var(--sky-bg);color:#0369a1}
+  .row{display:flex;gap:10px}
+  .row>*{flex:1;min-width:0}
+  .slider{position:relative;height:4px;background:#e7e5e4;border-radius:99px;margin:12px 0 8px}
+  .slider i{position:absolute;left:0;top:0;bottom:0;width:62%;background:var(--sky);border-radius:99px}
+  .slider b{position:absolute;left:62%;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;background:#fff;border:2px solid var(--sky);border-radius:50%}
+  .hint{font-size:11px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:5px 8px;margin-top:8px}
+  .modelbox{border:1px solid var(--line);border-radius:9px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .badge{font-size:11px;border-radius:5px;padding:1px 7px;border:1px solid #bbf7d0;background:#f0fdf4;color:#15803d;white-space:nowrap}
+  .badge.warn{border-color:#fde68a;background:#fffbeb;color:#b45309}
+  .primary{width:100%;border:0;background:var(--text);color:#fff;border-radius:9px;padding:11px;font-size:14px;font-weight:500;font-family:inherit;cursor:pointer}
+  .cost{font-size:12px;color:var(--faint);text-align:center;margin-top:8px}
+  .hist{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line2)}
+  .hist:last-child{border-bottom:0}
+  .cover{width:38px;height:38px;border-radius:8px;background:linear-gradient(135deg,#e0f2fe,#fae8ff);flex:none}
+  .play{width:26px;height:26px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;flex:none;color:var(--muted);font-size:10px}
+  .meta{min-width:0;flex:1}
+  .meta b{display:block;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meta span{font-size:11px;color:var(--faint)}
+  .rescard{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff}
+  .wave{display:flex;align-items:flex-end;gap:2px;height:44px;margin:10px 0}
+  .wave i{flex:1;background:#d6d3d1;border-radius:2px}
+  .wave i.on{background:var(--sky)}
+  .bars{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+  .mini{border:1px solid var(--line);border-radius:7px;padding:3px 9px;font-size:12px;color:var(--muted);background:#fff;cursor:pointer}
+  .run{border:1px solid var(--sky);border-radius:12px;padding:14px;background:var(--sky-bg)}
+  .spin{width:12px;height:12px;border:2px solid #bae6fd;border-top-color:var(--sky);border-radius:50%;display:inline-block;animation:s .8s linear infinite;vertical-align:-2px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .proto{position:fixed;right:16px;bottom:16px;font-size:11px;color:var(--faint);background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px 9px}
+</style>
+</head>
+<body>
+<header class="topnav">
+  <div style="display:flex;align-items:center">
+    <div class="brand"><span class="logo"></span><span>控制台</span></div>
+    <nav class="nav">
+      <span>我的画布</span><span>生图工作台</span><span>视频创作台</span>
+      <span class="on">音乐创作台</span><span>提示词库</span><span>我的素材</span>
+    </nav>
+  </div>
+  <div class="actions">
+    <span>⚙</span><span>◐</span><span>v0.8.0</span>
+    <span>☰<sup style="color:#0ea5e9;font-weight:600">2</sup></span>
+    <span class="avatar">A</span>
+  </div>
+</header>
+
+<div class="wrap">
+<div class="grid">
+
+  <!-- 左：创作参数 -->
+  <div>
+    <div class="card">
+      <div class="pad" style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div><h2>音乐创作</h2><div class="sub">描述或歌词，生成歌曲与纯音乐</div></div>
+        <div class="seg" id="mode">
+          <button class="on" data-mode="song">歌曲</button>
+          <button data-mode="instrumental">纯音乐</button>
+        </div>
+      </div>
+
+      <!-- 歌曲模式 -->
+      <div class="sec" data-only="song">
+        <label>歌词 <span style="float:right;color:#0ea5e9">AI 写词 · 润色</span></label>
+        <textarea rows="6">[Verse]
+窗外的雨敲着旧站台
+[Chorus]
+我把那年夏天折成纸船</textarea>
+        <div class="hint" style="background:#f8fafc;border-color:#e2e8f0;color:#64748b">支持 [Verse] / [Chorus] 结构标签</div>
+      </div>
+
+      <div class="sec">
+        <label data-label="prompt">风格描述</label>
+        <input type="text" value="国风流行，古筝与电子鼓，清亮女声" />
+      </div>
+
+      <div class="sec">
+        <label>风格标签</label>
+        <div class="tags">
+          <span class="tag on">流行</span><span class="tag on">国风</span><span class="tag">电子</span>
+          <span class="tag">说唱</span><span class="tag">民谣</span><span class="tag">爵士</span>
+        </div>
+        <label style="margin-top:12px">情绪 / 场景</label>
+        <div class="tags">
+          <span class="tag on">治愈</span><span class="tag">燃</span><span class="tag">怀旧</span><span class="tag">深夜</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <label>时长 <span id="durLabel" style="float:right;color:var(--text);font-weight:500">150 秒</span></label>
+        <div class="slider"><i id="durFill"></i><b id="durKnob"></b></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--faint)">
+          <span id="durMin">30 秒</span><span id="durMax">240 秒</span>
+        </div>
+        <div class="hint" id="durHint" style="display:none">当前模型的纯音乐上限为 120 秒（火山 GenBGM v5.0，官方 API 参考为 [30,120]），更长请切换到 Mureka 通道</div>
+      </div>
+
+      <div class="sec">
+        <div class="row">
+          <div><label>语言</label><select><option>中文</option><option>英文</option></select></div>
+          <div><label>人声</label><select id="voiceSel"><option>女声</option><option>男声</option><option>合唱</option></select></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div><label>调式</label><select><option>小调</option><option>大调</option></select></div>
+          <div><label>速度 BPM</label><input type="text" value="88" /></div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <label>模型</label>
+        <div class="modelbox">
+          <div>
+            <div style="font-size:13px;font-weight:500">豆包音乐 · GenSongV4</div>
+            <div class="sub">火山引擎 · 0.002 元/秒</div>
+          </div>
+          <span class="badge">官方 API</span>
+        </div>
+        <div class="modelbox" style="margin-top:8px">
+          <div>
+            <div style="font-size:13px;font-weight:500">Mureka-Music-v9</div>
+            <div class="sub">腾讯云 TokenHub · 0.33 元/首</div>
+          </div>
+          <span class="badge">授权转售</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <button class="primary">生成音乐</button>
+        <div class="cost">预计消耗 <b style="color:var(--text)">12</b> 算力点 · 一次生成 1 首</div>
+      </div>
+    </div>
+
+    <!-- 我的音乐 -->
+    <div class="card" style="margin-top:16px">
+      <div class="pad" style="display:flex;justify-content:space-between;align-items:center">
+        <div><h2>我的音乐</h2><div class="sub">共 24 首</div></div>
+        <div class="sub">关键词 · 风格 ▾</div>
+      </div>
+      <div class="pad" style="padding-top:0">
+        <div class="hist"><span class="play">▶</span><span class="cover"></span>
+          <span class="meta"><b>那年夏天</b><span>豆包音乐 · 02:30 · 3 分钟前</span></span>
+          <span class="play">⋯</span></div>
+        <div class="hist"><span class="play">▶</span><span class="cover"></span>
+          <span class="meta"><b>城市夜跑 BGM</b><span>Mureka-v9 · 00:58 · 昨天</span></span>
+          <span class="play">⋯</span></div>
+        <div class="hist"><span class="play">▶</span><span class="cover"></span>
+          <span class="meta"><b>雨夜古筝</b><span>豆包音乐 · 01:00 · 昨天</span></span>
+          <span class="play">⋯</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右：结果区 -->
+  <div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div><h2 style="font-size:16px">本次生成</h2><div class="sub">生成中 2 · 已完成 1</div></div>
+      <div class="sub">卡片 / 列表 ▾</div>
+    </div>
+
+    <div class="run" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500">
+          <span class="spin"></span> 那年夏天（第 2 版）
+        </div>
+        <span style="font-size:12px;color:#0369a1">执行中 · 已耗时 1 分 12 秒</span>
+      </div>
+      <div class="slider" style="margin:14px 0 0;background:#e0f2fe"><i style="width:46%"></i></div>
+      <div class="sub" style="margin-top:8px">豆包音乐 · GenSongV4 · 46%</div>
+    </div>
+
+    <div class="rescard" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-size:15px;font-weight:600">那年夏天</div>
+          <div class="sub" style="margin-top:2px">国风流行 · 女声 · 小调 88BPM · 02:30</div>
+        </div>
+        <span class="badge">已完成</span>
+      </div>
+      <div class="wave">
+        <i style="height:38%"></i><i style="height:62%" class="on"></i><i style="height:84%" class="on"></i><i style="height:46%" class="on"></i>
+        <i style="height:92%" class="on"></i><i style="height:70%" class="on"></i><i style="height:34%"></i><i style="height:58%"></i>
+        <i style="height:80%"></i><i style="height:52%"></i><i style="height:96%"></i><i style="height:64%"></i>
+        <i style="height:40%"></i><i style="height:74%"></i><i style="height:56%"></i><i style="height:88%"></i>
+        <i style="height:44%"></i><i style="height:68%"></i><i style="height:30%"></i><i style="height:54%"></i>
+      </div>
+      <div class="bars">
+        <span>▶</span><span>01:09 / 02:30</span>
+        <span style="margin-left:auto">1.0x</span><span>🔊</span><span>⟳</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="mini">下载 WAV</button><button class="mini">存入素材</button>
+        <button class="mini">复制链接</button><button class="mini">再来一版</button>
+      </div>
+    </div>
+
+    <div class="rescard">
+      <div class="sub" style="margin-bottom:10px">同一批候选（A/B 试听）</div>
+      <div class="hist"><span class="play">▶</span><span class="cover"></span>
+        <span class="meta"><b>那年夏天 · 版本 A</b><span>02:28 · 女声 · 小调</span></span>
+        <button class="mini">选用</button></div>
+      <div class="hist"><span class="play">▶</span><span class="cover"></span>
+        <span class="meta"><b>那年夏天 · 版本 B</b><span>02:31 · 女声 · 大调</span></span>
+        <button class="mini">选用</button></div>
+    </div>
+
+    <div class="card pad" style="margin-top:16px">
+      <div class="sub">
+        AI 生成内容已按法规添加标识与音频水印，不可去除。本页生成物仅供创作参考，商用前请确认所选模型的授权条款。
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<div class="proto">设计原型 · 非实际页面</div>
+
+<script>
+  const modeBox = document.getElementById('mode');
+  const durMax = document.getElementById('durMax');
+  const durLabel = document.getElementById('durLabel');
+  const durHint = document.getElementById('durHint');
+  const durFill = document.getElementById('durFill');
+  const durKnob = document.getElementById('durKnob');
+  const voiceSel = document.getElementById('voiceSel');
+
+  function apply(mode){
+    const instrumental = mode === 'instrumental';
+    modeBox.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+    document.querySelectorAll('[data-only="song"]').forEach(el => el.style.display = instrumental ? 'none' : '');
+    document.querySelector('[data-label="prompt"]').textContent = instrumental ? '音乐描述' : '风格描述';
+    durMax.textContent = instrumental ? '120 秒' : '240 秒';
+    durHint.style.display = instrumental ? 'block' : 'none';
+    const value = instrumental ? 60 : 150;
+    const percent = instrumental ? (value - 30) / 90 : (value - 30) / 210;
+    durLabel.textContent = value + ' 秒';
+    durFill.style.width = (percent * 100) + '%';
+    durKnob.style.left = (percent * 100) + '%';
+    durLabel.style.color = instrumental ? '#b45309' : 'var(--text)';
+    voiceSel.disabled = instrumental;
+    voiceSel.style.opacity = instrumental ? .45 : 1;
+  }
+
+  modeBox.addEventListener('click', e => {
+    if (e.target.dataset.mode) apply(e.target.dataset.mode);
+  });
+  apply(location.hash === '#instrumental' ? 'instrumental' : 'song');
+</script>
+</body>
+</html>

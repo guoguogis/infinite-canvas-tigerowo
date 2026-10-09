@@ -13,6 +13,9 @@ export const modelChannelProtocols = [
     { value: "doubao-tts", label: "豆包语音合成", baseUrl: "https://openspeech.bytedance.com/api/v3/plan" },
     { value: "kie", label: "KIE", baseUrl: "https://api.kie.ai/api/v1", directRequestPlan: true },
     { value: "mimo", label: "MiMo", baseUrl: "https://api.xiaomimimo.com", apiKeyUrl: "https://platform.xiaomimimo.com/?ref=JFZQR2" },
+    { value: "volc-music", label: "火山引擎音乐", baseUrl: "https://open.volcengineapi.com" },
+    { value: "tokenhub-music", label: "腾讯云 TokenHub", baseUrl: "https://tokenhub.tencentmaas.com" },
+    { value: "minimax-music", label: "MiniMax 音乐", baseUrl: "https://api.minimax.cn" },
 ] as const;
 
 export type ModelChannelProtocol = (typeof modelChannelProtocols)[number]["value"];

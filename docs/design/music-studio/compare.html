@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>音乐创作台 · 设计原型与竞品对比</title>
+<style>
+  :root{--line:#e7e5e4;--muted:#78716c;--text:#1c1917;--faint:#a8a29e}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fafaf9;color:var(--text);
+    font:14px/1.7 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1500px;margin:0 auto;padding:32px 28px 80px}
+  h1{font-size:24px;margin:0 0 6px}
+  h2{font-size:17px;margin:40px 0 4px;padding-top:16px;border-top:1px solid var(--line)}
+  .lead{color:var(--muted);font-size:13px;margin:0 0 18px}
+  .note{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:13px;color:#92400e;margin:14px 0 22px}
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .shot{border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden}
+  .shot .cap{padding:9px 12px;border-bottom:1px solid var(--line);font-size:13px;font-weight:500;display:flex;justify-content:space-between;align-items:center}
+  .shot .cap em{font-style:normal;font-weight:400;color:var(--faint);font-size:12px}
+  .shot img{display:block;width:100%}
+  .scroll{max-height:900px;overflow:auto}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .grid .shot img{height:230px;object-fit:cover;object-position:top}
+  table{border-collapse:collapse;width:100%;font-size:13px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{border-bottom:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:#f5f5f4;font-weight:500;font-size:12px;color:var(--muted)}
+  tr:last-child td{border-bottom:0}
+  .ok{color:#15803d}.no{color:#b91c1c}.part{color:#b45309}
+  code{background:#f5f5f4;border-radius:4px;padding:1px 5px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>音乐创作台 · 设计原型与竞品对比</h1>
+<p class="lead">左/上是我们的设计原型（静态 HTML 渲染，非实际页面）；竞品部分为各家官网落地页截图。</p>
+
+<div class="note">
+<b>截图能力边界（实测）：</b>Suno 官网从本机不可达；火山音乐产品页与 Mureka 平台首页分别返回 404 / 空白页；网易天音跳转到网易云音乐扫码登录页。
+各产品的<b>创作台 UI 全部在登录墙后面</b>，因此下面的竞品截图只能反映官网视觉，<b>看不到真实的参数面板与交互流程</b>。
+功能层面的对标以第 3 节矩阵为准（数据来自各家官方文档，逐条附来源链接见调研记录）。
+</div>
+
+<h2>1 · 我们的原型</h2>
+<p class="lead">同一页面的两种模式，演示「参数区能力驱动」：切到纯音乐后时长上限自动降为 60 秒、歌词输入消失、人声置灰。</p>
+<div class="pair">
+  <div class="shot"><div class="cap">歌曲模式 <em>默认</em></div><img src="assets/00-prototype-song.png" alt="原型 歌曲模式" /></div>
+  <div class="shot"><div class="cap">纯音乐模式 <em>#instrumental</em></div><img src="assets/00b-prototype-instrumental.png" alt="原型 纯音乐模式" /></div>
+</div>
+
+<h2>2 · 竞品官网截图</h2>
+<p class="lead">按调研中的定位分组；仅作视觉参考。</p>
+<div class="grid">
+  <div class="shot"><div class="cap">Udio <em>歌曲类 · 已禁下载</em></div><img src="assets/01-udio.png" /></div>
+  <div class="shot"><div class="cap">ElevenLabs Music <em>官方 API</em></div><img src="assets/02-elevenlabs-music.png" /></div>
+  <div class="shot"><div class="cap">Stable Audio <em>官方 API</em></div><img src="assets/03-stable-audio.png" /></div>
+  <div class="shot"><div class="cap">Mubert <em>任意时长+循环+分轨</em></div><img src="assets/04-mubert.png" /></div>
+  <div class="shot"><div class="cap">Soundraw <em>参数化 BGM</em></div><img src="assets/05-soundraw.png" /></div>
+  <div class="shot"><div class="cap">Beatoven <em>按分钟计费+stems</em></div><img src="assets/06-beatoven.png" /></div>
+  <div class="shot"><div class="cap">阶跃星辰 StepFun <em>限时免费</em></div><img src="assets/09-stepfun.png" /></div>
+  <div class="shot"><div class="cap">SenseAudio <em>0.5 元/首</em></div><img src="assets/10-senseaudio.png" /></div>
+  <div class="shot"><div class="cap">腾讯云 TokenHub <em>转售 MiniMax+Mureka</em></div><img src="assets/11-tencent-tokenhub.png" /></div>
+  <div class="shot"><div class="cap">KIE.ai <em>2026-12-31 断中国 IP</em></div><img src="assets/12-kie.png" /></div>
+  <div class="shot"><div class="cap">网易天音 <em>登录墙</em></div><img src="assets/13-tianyin.png" /></div>
+  <div class="shot"><div class="cap">即梦 Dreamina <em>C 端</em></div><img src="assets/14-jimeng.png" /></div>
+</div>
+
+<h2>3 · 能力对标矩阵</h2>
+<p class="lead">这一节才是选型依据：创作台截图看不到的东西，都在这里。</p>
+<table>
+<thead><tr><th>能力</th><th>Suno / Udio</th><th>火山豆包音乐</th><th>腾讯 TokenHub</th><th>Mureka</th><th>纯音乐类<br/>(ElevenLabs / Stable Audio / Mubert)</th><th>我们的原型</th></tr></thead>
+<tbody>
+<tr><td>官方自助 API</td><td class="no">无<br/><span style="color:var(--muted)">仅邀请制 / 明确不提供</span></td><td class="ok">有</td><td class="ok">有</td><td class="ok">有</td><td class="ok">有</td><td>按渠道配置</td></tr>
+<tr><td>描述生成歌曲</td><td class="ok">有</td><td class="ok">有</td><td class="ok">有</td><td class="ok">有</td><td class="no">无（纯音乐）</td><td class="ok">有</td></tr>
+<tr><td>自定义歌词</td><td class="ok">有</td><td class="ok">有</td><td class="ok">有</td><td class="ok">有</td><td class="no">无</td><td class="ok">有</td></tr>
+<tr><td>纯音乐模式</td><td class="ok">有</td><td class="ok">独立 Action</td><td class="ok">flag</td><td class="ok">独立接口</td><td class="ok">主打</td><td class="ok">有</td></tr>
+<tr><td>时长控制</td><td class="part">10–360s</td><td class="part">歌曲 30–240s<br/>纯音乐 30–120s</td><td class="no">未公开</td><td class="no">未公开</td><td class="ok">Mubert 15–1500s</td><td class="ok">按模型能力切换</td></tr>
+<tr><td>参考音频 / 翻唱</td><td class="ok">有</td><td class="no">无</td><td class="no">无</td><td class="ok">音色克隆</td><td class="part">部分</td><td class="part">二期</td></tr>
+<tr><td>续写 Extend</td><td class="ok">有</td><td class="no">无</td><td class="no">无</td><td class="ok">有</td><td class="no">无</td><td class="no">二期</td></tr>
+<tr><td>分轨 Stems</td><td class="part">Suno 有 / Udio 已禁</td><td class="no">无</td><td class="no">无</td><td class="ok">有</td><td class="ok">Mubert/Beatoven</td><td class="no">二期</td></tr>
+<tr><td>BPM / 调性控制</td><td class="no">无（只能读）</td><td class="ok">有 Key/Kmode/Tempo</td><td class="no">无</td><td class="no">未公开</td><td class="part">写进 prompt</td><td class="ok">有</td></tr>
+<tr><td>歌词生成</td><td class="part">内置</td><td class="ok">独立 GenLyrics</td><td class="ok">lyrics_optimizer</td><td class="ok">有</td><td class="no">无</td><td class="ok">有</td></tr>
+<tr><td>单次候选数</td><td class="ok">2 首</td><td class="part">1 首</td><td class="part">1 首</td><td class="no">未公开</td><td class="part">Stable/ElevenLabs 多版</td><td class="ok">A/B 试听</td></tr>
+<tr><td>单价</td><td class="part">订阅制，按次</td><td class="ok">0.002 元/秒</td><td class="ok">1 / 0.25 / <b>0.33</b> 元/首</td><td class="part">官方未公开</td><td class="part">$0.26/次起</td><td>折算成算力点</td></tr>
+<tr><td>商用授权清晰度</td><td class="no">诉讼未决</td><td class="ok">生成式条款+SLA</td><td class="ok">腾讯云条款</td><td class="ok">FAQ 明确可商用</td><td class="part">逐家不同</td><td>页面明示+水印</td></tr>
+<tr><td>国内可长期使用</td><td class="no">中转将断供</td><td class="ok">是</td><td class="ok">是</td><td class="ok">是</td><td class="part">需国际网络</td><td>渠道分级</td></tr>
+</tbody>
+</table>
+
+<h2>4 · 原型里对应落地的设计决策</h2>
+<table>
+<thead><tr><th>调研发现</th><th>原型中的体现</th></tr></thead>
+<tbody>
+<tr><td>各模型参数集不同（纯音乐有 flag / 独立 Action 之分，时长上限不同）</td><td>参数区<b>能力驱动</b>：切换模式即时改变时长区间与可见字段，并在超限时给出提示条</td></tr>
+<tr><td>渠道存在官方 / 授权转售 / 逆向三级</td><td>模型卡片带 <span class="ok">官方 API</span> / <span class="part">授权转售</span> 徽标</td></tr>
+<tr><td>计费口径三种（元/秒、元/首、元/百万 tokens）</td><td>模型卡片统一显示折算单价，底部统一显示「预计消耗 N 算力点」</td></tr>
+<tr><td>上游 URL 有效期 12h / 24h / 7 天不等</td><td>结果卡提供「下载 WAV / 存入素材」，产物由后端转存自有存储</td></tr>
+<tr><td>AI 标识与音频水印是合规硬要求</td><td>结果区底部固定合规声明，明确水印不可去除</td></tr>
+<tr><td>单次候选可多版对比</td><td>「同一批候选（A/B 试听）」区块，逐条「选用」</td></tr>
+</tbody>
+</table>
+
+</div>
+</body>
+</html>
